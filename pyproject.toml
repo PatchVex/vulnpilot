@@ -1,15 +1,14 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68,<72", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "vulnpilot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Turn vulnerability scan data into prioritized action. Runs locally. Your data never leaves your machine."
 readme = "README.md"
-license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["security", "vulnerability", "nessus", "cve", "kev", "epss", "devsecops", "prioritization"]
+keywords = ["security", "vulnerability", "nessus", "cve", "kev", "epss", "devsecops"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -30,8 +29,8 @@ vulnpilot = "vulnpilot.cli:main"
 
 [project.urls]
 Homepage    = "https://patchvex.com"
-Repository  = "https://github.com/patchvex/vulnpilot"
-"Bug Tracker" = "https://github.com/patchvex/vulnpilot/issues"
+Repository  = "https://github.com/PatchVex/vulnpilot"
+"Bug Tracker" = "https://github.com/PatchVex/vulnpilot/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

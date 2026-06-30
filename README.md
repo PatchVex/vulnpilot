@@ -7,7 +7,7 @@ Runs locally. Your data never leaves your machine.
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![Status: Developer Preview](https://img.shields.io/badge/status-developer%20preview-orange.svg)]()
-[![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue.svg)]()
+[![Version: 0.1.0](https://img.shields.io/pypi/v/vulnpilot.svg)]()
 
 ---
 
