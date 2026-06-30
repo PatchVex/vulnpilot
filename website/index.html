@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="VulnPilot by PatchVex — Prioritize 5,000+ vulnerabilities in seconds using CISA KEV, FIRST EPSS, and CVSS. Runs locally. Your data never leaves your machine." />
+  <meta name="keywords" content="nessus vulnerability prioritization, CISA KEV, EPSS, vulnerability management, devsecops, security operations, vulnerability triage, CVE prioritization" />
+  <title>VulnPilot by PatchVex — Know what to patch first</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --orange: #d29922;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav {
+      border-bottom: 1px solid var(--border); padding: 1rem 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; background: var(--bg); z-index: 100;
+    }
+    .nav-brand { font-size: 1.1rem; font-weight: 600; }
+    .nav-brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; font-size: 0.9rem; }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .hero { max-width: 860px; margin: 0 auto; padding: 5rem 2rem 3rem; text-align: center; }
+    .badge {
+      display: inline-block; background: #1c2128; border: 1px solid var(--border);
+      border-radius: 2rem; padding: 0.3rem 1rem; font-size: 0.8rem;
+      color: var(--muted); margin-bottom: 1.5rem;
+    }
+    .badge span { color: var(--green); }
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; line-height: 1.2; margin-bottom: 1.2rem; letter-spacing: -0.02em; }
+    h1 em { color: var(--accent); font-style: normal; }
+    .subtitle { font-size: 1.1rem; color: var(--muted); max-width: 600px; margin: 0 auto 2rem; }
+    .cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.5rem; border-radius: 6px; font-size: 0.95rem; font-weight: 500; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .pip-hint { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); margin-bottom: 1.5rem; }
+    .pip-hint span { color: var(--green); }
+
+    .trust-badges { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .trust-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--muted); }
+    .trust-item .check { color: var(--green); font-weight: 600; }
+
+    /* WORKFLOW */
+    .workflow { display: flex; justify-content: center; align-items: center; gap: 0; max-width: 680px; margin: 3rem auto; padding: 0 2rem; flex-wrap: wrap; }
+    .wf-step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1.5rem; text-align: center; flex: 1; min-width: 150px; }
+    .wf-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .wf-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.3rem; }
+    .wf-desc { font-size: 0.8rem; color: var(--muted); }
+    .wf-arrow { font-size: 1.5rem; color: var(--border); padding: 0 0.5rem; flex-shrink: 0; }
+
+    .terminal-wrap { max-width: 760px; margin: 3rem auto; padding: 0 2rem; }
+    .terminal { background: #010409; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-family: var(--mono); font-size: 0.82rem; }
+    .terminal-bar { background: var(--surface); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border); }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+    .terminal-title { color: var(--muted); font-size: 0.78rem; margin: 0 auto; }
+    .terminal-body { padding: 1.2rem 1.5rem; line-height: 1.9; }
+    .t-cmd { color: var(--green); } .t-head { color: var(--accent); font-weight: bold; }
+    .t-sep { color: #3d444d; } .t-crit { color: var(--red); } .t-warn { color: var(--orange); }
+    .t-low { color: #79c0ff; } .t-muted { color: var(--muted); } .t-kev { color: var(--red); } .t-score { color: var(--green); }
+
+    .stats { display: flex; justify-content: center; gap: 1.5rem; padding: 2.5rem 2rem; flex-wrap: wrap; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); max-width: 860px; margin: 0 auto; }
+    .stat-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; text-align: center; min-width: 160px; }
+    .stat-num { font-size: 1rem; font-weight: 600; color: var(--accent); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.3rem; }
+
+    .who-section { max-width: 860px; margin: 0 auto; padding: 3rem 2rem; }
+    .who-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .who-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+    .who-item .check { color: var(--green); }
+
+    section { max-width: 860px; margin: 0 auto; padding: 3rem 2rem; }
+    h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem; }
+    h2 .accent { color: var(--accent); }
+    p { color: var(--muted); margin-bottom: 1rem; }
+
+    .compare-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
+    .compare-table th { text-align: left; padding: 0.7rem 1rem; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-weight: 500; }
+    .compare-table th:last-child { color: var(--accent); }
+    .compare-table td { padding: 0.7rem 1rem; border: 1px solid var(--border); color: var(--muted); }
+    .compare-table td:last-child { color: var(--text); }
+    .cross { color: var(--red); } .check-g { color: var(--green); }
+
+    .arch { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem 2rem; font-family: var(--mono); font-size: 0.83rem; line-height: 2; color: var(--muted); margin: 1.5rem 0; overflow-x: auto; }
+    .arch .hl { color: var(--accent); } .arch .gr { color: var(--green); }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1.5rem; }
+    .feature-icon { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .feature-title { font-weight: 600; margin-bottom: 0.4rem; font-size: 0.95rem; }
+    .feature-desc { font-size: 0.85rem; color: var(--muted); }
+
+    .powered-by { text-align: center; padding: 2rem; border-top: 1px solid var(--border); }
+    .powered-by p { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
+    .powered-logos { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+    .powered-logo { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+    .powered-logo a { color: var(--muted); }
+    .powered-logo a:hover { color: var(--text); text-decoration: none; }
+
+    .score-table { width: 100%; border-collapse: collapse; margin-top: 1.2rem; font-size: 0.9rem; }
+    .score-table th { text-align: left; padding: 0.6rem 1rem; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-weight: 500; }
+    .score-table td { padding: 0.6rem 1rem; border: 1px solid var(--border); color: var(--muted); }
+    .score-table td:first-child { color: var(--text); font-weight: 500; }
+    .w-high { color: var(--red); font-weight: 600; } .w-med { color: var(--orange); font-weight: 600; } .w-low { color: var(--accent); font-weight: 600; }
+
+    .roadmap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+    .roadmap-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+    .roadmap-ver { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .roadmap-feature { font-size: 0.9rem; font-weight: 500; margin-bottom: 0.3rem; }
+    .roadmap-status { font-size: 0.78rem; color: var(--muted); }
+    .done { border-color: var(--green); }
+    .done .roadmap-ver { color: var(--green); }
+
+    .install-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .install-step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; }
+    .step-num { font-size: 0.75rem; color: var(--accent); font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .step-cmd { font-family: var(--mono); font-size: 0.85rem; color: var(--green); margin-bottom: 0.4rem; }
+    .step-desc { font-size: 0.8rem; color: var(--muted); }
+
+    .faq { margin-top: 1.5rem; }
+    .faq-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+    .faq-q { padding: 1rem 1.25rem; font-weight: 500; font-size: 0.95rem; background: var(--surface); }
+    .faq-a { padding: 1rem 1.25rem; font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--border); }
+    .faq-a code { font-family: var(--mono); background: #010409; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.85rem; }
+
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .footer-meta { margin-top: 0.75rem; font-size: 0.8rem; color: #484f58; }
+
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .wf-arrow { display: none; }
+      .trust-badges { gap: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Patch<span>Vex</span></div>
+  <div class="nav-links">
+    <a href="#why">Why</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#install">Install</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://github.com/PatchVex/vulnpilot">GitHub</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="badge"><span>●</span> Community Preview — v0.1.0</div>
+  <h1>Know what to <em>patch first</em>.</h1>
+  <p class="subtitle">
+    Prioritize 5,000+ vulnerabilities in seconds using CISA KEV, FIRST EPSS, and CVSS — without uploading your data.
+  </p>
+  <div class="cta-group">
+    <a href="https://pypi.org/project/vulnpilot/" class="btn btn-primary">Get Started</a>
+    <a href="https://github.com/PatchVex/vulnpilot" class="btn btn-secondary">View on GitHub</a>
+  </div>
+  <p class="pip-hint"><span>$</span> pip install vulnpilot</p>
+  <div class="trust-badges">
+    <div class="trust-item"><span class="check">✓</span> Open Source</div>
+    <div class="trust-item"><span class="check">✓</span> MIT License</div>
+    <div class="trust-item"><span class="check">✓</span> Available on PyPI</div>
+    <div class="trust-item"><span class="check">✓</span> Local-first</div>
+    <div class="trust-item"><span class="check">✓</span> No API keys required</div>
+  </div>
+</div>
+
+<!-- WORKFLOW -->
+<div class="workflow">
+  <div class="wf-step">
+    <div class="wf-icon">📄</div>
+    <div class="wf-title">Upload</div>
+    <div class="wf-desc">Your Nessus scan.csv</div>
+  </div>
+  <div class="wf-arrow">→</div>
+  <div class="wf-step">
+    <div class="wf-icon">⚡</div>
+    <div class="wf-title">Prioritize</div>
+    <div class="wf-desc">5,000+ findings in seconds</div>
+  </div>
+  <div class="wf-arrow">→</div>
+  <div class="wf-step">
+    <div class="wf-icon">🎯</div>
+    <div class="wf-title">Patch</div>
+    <div class="wf-desc">KEV vulnerabilities first</div>
+  </div>
+</div>
+
+<!-- TERMINAL -->
+<div class="terminal-wrap">
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <span class="terminal-title">vulnpilot analyze scan.csv</span>
+    </div>
+    <div class="terminal-body">
+      <div class="t-cmd">$ vulnpilot analyze scan.csv</div>
+      <div class="t-sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="t-head">  VulnPilot by PatchVex — Vulnerability Prioritization</div>
+      <div class="t-sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div>&nbsp;</div>
+      <div>  Total findings&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <strong>5,482</strong></div>
+      <div>  Unique hosts&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 47</div>
+      <div>&nbsp;</div>
+      <div>  <span class="t-crit">Critical</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 142</div>
+      <div>  <span class="t-warn">High</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 386</div>
+      <div>  <span class="t-low">Medium</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: 1,520</div>
+      <div>&nbsp;</div>
+      <div>  <span class="t-kev">KEV matches</span> (exploited now) : <strong>19</strong></div>
+      <div>  <span class="t-warn">EPSS &ge; 90%</span> (high risk)&nbsp;&nbsp;&nbsp;&nbsp;: 31</div>
+      <div class="t-sep">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div>&nbsp;</div>
+      <div class="t-head">  TOP 5 PRIORITIZED FINDINGS</div>
+      <div>&nbsp;</div>
+      <div class="t-muted">  #&nbsp;&nbsp;&nbsp;&nbsp;Score&nbsp;&nbsp;Priority&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Host&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CVE&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Finding</div>
+      <div class="t-sep">  ─────────────────────────────────────────────────────────────────────</div>
+      <div>  1&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-score">100.0</span>&nbsp;&nbsp;<span class="t-crit">CRITICAL NOW</span>&nbsp;&nbsp;192.168.1.10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CVE-2021-44228&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Log4Shell <span class="t-kev">★KEV</span></div>
+      <div>  2&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-score">100.0</span>&nbsp;&nbsp;<span class="t-crit">CRITICAL NOW</span>&nbsp;&nbsp;192.168.1.25&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CVE-2023-34362&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MOVEit SQLi <span class="t-kev">★KEV</span></div>
+      <div>  3&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-score">99.8</span>&nbsp;&nbsp;&nbsp;<span class="t-crit">CRITICAL NOW</span>&nbsp;&nbsp;192.168.1.15&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CVE-2020-1472&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Zerologon <span class="t-kev">★KEV</span></div>
+      <div>  4&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-score">99.7</span>&nbsp;&nbsp;&nbsp;<span class="t-crit">CRITICAL NOW</span>&nbsp;&nbsp;192.168.1.11&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CVE-2021-26084&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Confluence RCE <span class="t-kev">★KEV</span></div>
+      <div>  5&nbsp;&nbsp;&nbsp;&nbsp;<span class="t-score">11.5</span>&nbsp;&nbsp;&nbsp;<span class="t-low">LOW</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;192.168.1.10&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;N/A&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SSH Weak Ciphers</div>
+      <div>&nbsp;</div>
+      <div class="t-kev">  ★ KEV = CISA Known Exploited — highest remediation priority.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat-item"><div class="stat-num">Local-first</div><div class="stat-label">Data never leaves your machine</div></div>
+  <div class="stat-item"><div class="stat-num">Open Source</div><div class="stat-label">MIT licensed, inspect every line</div></div>
+  <div class="stat-item"><div class="stat-num">Daily Feeds</div><div class="stat-label">KEV + EPSS updated automatically</div></div>
+  <div class="stat-item"><div class="stat-num">No Keys</div><div class="stat-label">No API keys or accounts required</div></div>
+</div>
+
+<!-- WHO IS THIS FOR -->
+<div class="who-section">
+  <h2>Built <span style="color:var(--accent)">for</span></h2>
+  <div class="who-grid">
+    <div class="who-item"><span class="check">✓</span> Security Engineers</div>
+    <div class="who-item"><span class="check">✓</span> DevSecOps Teams</div>
+    <div class="who-item"><span class="check">✓</span> SOC Analysts</div>
+    <div class="who-item"><span class="check">✓</span> Infrastructure Engineers</div>
+    <div class="who-item"><span class="check">✓</span> Vulnerability Management Teams</div>
+    <div class="who-item"><span class="check">✓</span> Pentesters</div>
+  </div>
+</div>
+
+<!-- WHY -->
+<section id="why">
+  <h2>Why <span class="accent">VulnPilot</span>?</h2>
+  <p>CVSS scores alone do not tell you what is actively being exploited right now. VulnPilot combines three signals to give you a definitive remediation order.</p>
+  <table class="compare-table">
+    <thead><tr><th>Traditional workflow</th><th>VulnPilot</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cross">✗</span> Sort thousands of CVEs manually</td><td><span class="check-g">✓</span> Prioritized automatically in seconds</td></tr>
+      <tr><td><span class="cross">✗</span> CVSS score only</td><td><span class="check-g">✓</span> KEV + EPSS + CVSS composite</td></tr>
+      <tr><td><span class="cross">✗</span> Hours of analysis per scan cycle</td><td><span class="check-g">✓</span> Results in seconds</td></tr>
+      <tr><td><span class="cross">✗</span> Upload to cloud services</td><td><span class="check-g">✓</span> Runs entirely on your machine</td></tr>
+      <tr><td><span class="cross">✗</span> Enterprise-only platforms</td><td><span class="check-g">✓</span> Free and open source</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works">
+  <h2>How it <span class="accent">works</span></h2>
+  <p>VulnPilot cross-references your Nessus scan output against three public data sources — all processed locally. No vulnerability data is transmitted outside your environment.</p>
+  <div class="arch">
+<pre>
+        Public Threat Intelligence
+    +-------------------------------+
+    |  <span class="hl">CISA KEV</span>      <span class="hl">FIRST EPSS</span>     |
+    +---------------+---------------+
+                    |
+            vulnpilot update-feeds
+                    |
+        ~/.vulnpilot/feeds/ (local cache)
+                    |
+            vulnpilot analyze
+                    |
+    <span class="gr">Nessus CSV (Local Machine Only)</span>
+                    |
+       Composite Risk Engine
+                    |
+       Prioritized Findings
+</pre>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section>
+  <h2>What's <span class="accent">included</span></h2>
+  <div class="features">
+    <div class="feature"><div class="feature-icon">🔒</div><div class="feature-title">Local-first</div><div class="feature-desc">All analysis runs on your machine. Scan data never leaves your environment. Ever.</div></div>
+    <div class="feature"><div class="feature-icon">⚡</div><div class="feature-title">CISA KEV enrichment</div><div class="feature-desc">Instantly flags findings confirmed exploited in the wild right now.</div></div>
+    <div class="feature"><div class="feature-icon">📊</div><div class="feature-title">FIRST EPSS scoring</div><div class="feature-desc">Adds exploitation probability so you focus on what's likely to be exploited next.</div></div>
+    <div class="feature"><div class="feature-icon">🎯</div><div class="feature-title">Composite scoring</div><div class="feature-desc">KEV + EPSS + CVSS combined into one actionable priority score per finding.</div></div>
+    <div class="feature"><div class="feature-icon">🖥️</div><div class="feature-title">Top hosts ranking</div><div class="feature-desc">Ranks hosts by aggregate risk so you know which servers need attention first.</div></div>
+    <div class="feature"><div class="feature-icon">🔄</div><div class="feature-title">Daily feed updates</div><div class="feature-desc">KEV and EPSS feeds update automatically. No API keys required.</div></div>
+  </div>
+</section>
+
+<!-- POWERED BY -->
+<div class="powered-by">
+  <p>Powered by public threat intelligence from</p>
+  <div class="powered-logos">
+    <div class="powered-logo"><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank">CISA KEV</a></div>
+    <div class="powered-logo"><a href="https://www.first.org/epss/" target="_blank">FIRST EPSS</a></div>
+    <div class="powered-logo"><a href="https://www.tenable.com/products/nessus" target="_blank">Nessus CSV</a></div>
+  </div>
+</div>
+
+<!-- SCORING -->
+<section>
+  <h2>Scoring <span class="accent">model</span></h2>
+  <p>The composite score is intentionally opinionated and fully transparent. Known exploited vulnerabilities receive the greatest weight because active exploitation is a stronger predictor of remediation priority than severity alone.</p>
+  <table class="score-table">
+    <thead><tr><th>Signal</th><th>Weight</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>CISA KEV match</td><td><span class="w-high">40%</span></td><td>Known exploited in the wild</td></tr>
+      <tr><td>FIRST EPSS score</td><td><span class="w-med">35%</span></td><td>Exploitation probability</td></tr>
+      <tr><td>CVSS base score</td><td><span class="w-low">15%</span></td><td>Severity context</td></tr>
+      <tr><td>Scanner risk rating</td><td><span class="w-low">10%</span></td><td>Nessus severity label</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:1rem;font-size:0.83rem;font-style:italic;">VulnPilot provides prioritization guidance to assist remediation workflows. Final decisions should always consider asset criticality, business context, and organizational risk tolerance.</p>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <h2>Road<span class="accent">map</span></h2>
+  <p>Development priorities are driven by community feedback and real-world usage.</p>
+  <div class="roadmap-grid">
+    <div class="roadmap-item done"><div class="roadmap-ver">v0.1.0 ✓ Done</div><div class="roadmap-feature">Community Preview</div><div class="roadmap-status">CLI, KEV, EPSS, PyPI</div></div>
+    <div class="roadmap-item"><div class="roadmap-ver">v0.2.0</div><div class="roadmap-feature">HTML Reports</div><div class="roadmap-status">Shareable export</div></div>
+    <div class="roadmap-item"><div class="roadmap-ver">v0.3.0</div><div class="roadmap-feature">Jira Integration</div><div class="roadmap-status">Auto-create tickets</div></div>
+    <div class="roadmap-item"><div class="roadmap-ver">v0.4.0</div><div class="roadmap-feature">Qualys Support</div><div class="roadmap-status">Multi-scanner</div></div>
+    <div class="roadmap-item"><div class="roadmap-ver">v1.0.0</div><div class="roadmap-feature">Enterprise Edition</div><div class="roadmap-status">Team features, SSO</div></div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="install">
+  <h2>Get <span class="accent">started</span></h2>
+  <p>Install with pip. Requires Python 3.10, 3.11, or 3.12. Three steps.</p>
+  <div class="install-steps">
+    <div class="install-step"><div class="step-num">Step 1 — Install</div><div class="step-cmd">pip install vulnpilot</div><div class="step-desc">Install from PyPI. Zero dependencies.</div></div>
+    <div class="install-step"><div class="step-num">Step 2 — Update feeds</div><div class="step-cmd">vulnpilot update-feeds</div><div class="step-desc">Download latest KEV and EPSS data.</div></div>
+    <div class="install-step"><div class="step-num">Step 3 — Analyze</div><div class="step-cmd">vulnpilot analyze scan.csv</div><div class="step-desc">See prioritized findings instantly.</div></div>
+  </div>
+  <div class="cta-group" style="justify-content:flex-start;margin-top:1.5rem;">
+    <a href="https://pypi.org/project/vulnpilot/" class="btn btn-primary">Install on PyPI</a>
+    <a href="https://github.com/PatchVex/vulnpilot" class="btn btn-secondary">View on GitHub</a>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <h2>Frequently asked <span class="accent">questions</span></h2>
+  <div class="faq">
+    <div class="faq-item"><div class="faq-q">Does VulnPilot upload my scan data?</div><div class="faq-a">No. All analysis runs locally on your machine. Only public threat intelligence feeds are downloaded. Your vulnerability data never leaves your environment.</div></div>
+    <div class="faq-item"><div class="faq-q">Does it work offline or air-gapped?</div><div class="faq-a">Yes, after the initial feed download. Run <code>vulnpilot update-feeds</code> once to cache locally. After that, analysis works completely offline.</div></div>
+    <div class="faq-item"><div class="faq-q">Is it open source?</div><div class="faq-a">Yes. VulnPilot is MIT licensed. Inspect every line of code, fork it, and contribute on GitHub.</div></div>
+    <div class="faq-item"><div class="faq-q">Which scanners are supported?</div><div class="faq-a">Currently Nessus CSV exports. Qualys, Rapid7, and OpenVAS support is planned.</div></div>
+    <div class="faq-item"><div class="faq-q">How often are the threat feeds updated?</div><div class="faq-a">CISA KEV and FIRST EPSS feeds update daily via GitHub Actions. Run <code>vulnpilot update-feeds</code> to pull the latest data anytime.</div></div>
+    <div class="faq-item"><div class="faq-q">Can I use it commercially?</div><div class="faq-a">Yes. The MIT license permits commercial use without restriction.</div></div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-links">
+    <a href="https://github.com/PatchVex/vulnpilot">GitHub</a>
+    <a href="https://pypi.org/project/vulnpilot/">PyPI</a>
+    <a href="https://github.com/PatchVex/vulnpilot/blob/main/README.md">Documentation</a>
+    <a href="mailto:hello@patchvex.com">hello@patchvex.com</a>
+    <a href="mailto:security@patchvex.com">security@patchvex.com</a>
+  </div>
+  <p>VulnPilot is open source software released under the MIT License.</p>
+  <p style="margin-top:0.5rem;">Built by <a href="https://patchvex.com">PatchVex</a> — Privacy-first workflow tools for security teams.</p>
+  <div class="footer-meta">Community Preview · v0.1.0 · Daily threat feed updates</div>
+</footer>
+
+</body>
+</html>
