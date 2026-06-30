@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+*.log
+.DS_Store
+~/.vulnpilot/
+feeds/*.gz
+feeds/*.json
+.venv/
+venv/
+*.egg
+.pytest_cache/
+htmlcov/
+.coverage
