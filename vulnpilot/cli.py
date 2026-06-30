@@ -3,6 +3,7 @@
 VulnPilot CLI by PatchVex
 Usage:
     vulnpilot analyze scan.csv
+    vulnpilot analyze scan.csv --html report.html
     vulnpilot analyze scan.csv --all
     vulnpilot update-feeds
     vulnpilot --version
@@ -17,7 +18,10 @@ from vulnpilot import __version__
 from vulnpilot.parser import parse_nessus_csv
 from vulnpilot.enrich import enrich, update_feeds
 from vulnpilot.scoring import score_all
-from vulnpilot.reports import render_summary, render_findings, render_top_hosts, render_free_tier_gate
+from vulnpilot.reports import (
+    render_summary, render_findings, render_top_hosts,
+    render_free_tier_gate, generate_html_report
+)
 
 FREE_TIER_LIMIT = 20
 
@@ -41,16 +45,27 @@ def cmd_analyze(args: argparse.Namespace) -> int:
            epss_path=Path(args.epss) if args.epss else None)
 
     scored = score_all(findings)
-    use_colour = sys.stdout.isatty() and not args.no_colour
     is_paid = args.all or bool(args.license)
-    limit = len(scored) if is_paid else FREE_TIER_LIMIT
+    limit   = len(scored) if is_paid else FREE_TIER_LIMIT
 
+    # Terminal output
+    use_colour = sys.stdout.isatty() and not args.no_colour
     print(render_summary(scored, use_colour=use_colour))
     print(render_findings(scored, limit=limit, use_colour=use_colour))
     print(render_top_hosts(scored, top_n=args.top_hosts, use_colour=use_colour))
-
     if not is_paid and len(scored) > FREE_TIER_LIMIT:
         print(render_free_tier_gate(len(scored), FREE_TIER_LIMIT, use_colour=use_colour))
+
+    # HTML report
+    if args.html:
+        out = generate_html_report(
+            findings=scored,
+            output_path=Path(args.html),
+            scan_file=Path(args.csv).name,
+            limit=FREE_TIER_LIMIT,
+            is_paid=is_paid,
+        )
+        print(f"\n  HTML report saved: {out}")
 
     return 0
 
@@ -70,20 +85,26 @@ def build_parser() -> argparse.ArgumentParser:
         description="VulnPilot by PatchVex — Turn vulnerability scan data into prioritized action.",
     )
     parser.add_argument("--version", action="version", version=f"VulnPilot {__version__}")
-    parser.add_argument("--no-colour", "--no-color", action="store_true", dest="no_colour")
+    parser.add_argument("--no-colour", "--no-color", action="store_true",
+                        dest="no_colour", help="Disable coloured terminal output")
 
     sub = parser.add_subparsers(dest="command")
 
     analyze = sub.add_parser("analyze", help="Analyze a Nessus CSV export")
     analyze.add_argument("csv", help="Path to Nessus CSV file")
-    analyze.add_argument("--kev", help="Path to local KEV JSON")
+    analyze.add_argument("--kev",  help="Path to local KEV JSON")
     analyze.add_argument("--epss", help="Path to local EPSS CSV")
-    analyze.add_argument("--top-hosts", type=int, default=10, metavar="N")
-    analyze.add_argument("--all", action="store_true", help="Show all findings [Pro]")
-    analyze.add_argument("--license", metavar="KEY", help="License key [Pro]")
+    analyze.add_argument("--top-hosts", type=int, default=10, metavar="N",
+                         help="Show top N hosts by aggregate risk (default: 10)")
+    analyze.add_argument("--all", action="store_true",
+                         help="Show all findings [Professional Edition]")
+    analyze.add_argument("--license", metavar="KEY",
+                         help="License key for Professional Edition")
+    analyze.add_argument("--html", metavar="FILE",
+                         help="Export HTML report to FILE (e.g. report.html)")
 
     feeds = sub.add_parser("update-feeds", help="Download latest KEV and EPSS feeds")
-    feeds.add_argument("--cache", help="Cache directory")
+    feeds.add_argument("--cache", help="Cache directory for feeds")
 
     return parser
 
