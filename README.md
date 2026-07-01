@@ -4,7 +4,7 @@
 
 Runs locally. Your data never leaves your machine.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
 [![Status: Community Preview](https://img.shields.io/badge/status-community%20preview-orange.svg)]()
@@ -294,7 +294,7 @@ Thank you to both organizations for maintaining these community resources.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE) for details.
 
 Free to use, modify, and distribute. Commercial use permitted.
 
