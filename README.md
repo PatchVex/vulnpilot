@@ -6,8 +6,8 @@ Runs locally. Your data never leaves your machine.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
-[![Status: Developer Preview](https://img.shields.io/badge/status-developer%20preview-orange.svg)]()
-[![Version: 0.1.0](https://img.shields.io/pypi/v/vulnpilot.svg)]()
+[![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
+[![Status: Community Preview](https://img.shields.io/badge/status-community%20preview-orange.svg)]()
 
 ---
 
@@ -23,24 +23,11 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 ---
 
-## Features
-
-- Local-first vulnerability prioritization — scan data never leaves your machine
-- CISA KEV enrichment — flags findings confirmed exploited in the wild
-- FIRST EPSS enrichment — exploitation probability scoring
-- Composite risk scoring — KEV + EPSS + CVSS combined
-- Top vulnerable hosts ranked by aggregate risk
-- Zero cloud upload, zero telemetry, zero account required
-- GitHub Actions daily feed automation
-- Open source Community Edition — MIT licensed
-
----
-
 ## The problem
 
 Security teams often spend hours manually triaging scan results. Your Nessus export contains thousands of findings. CVSS says hundreds are Critical. The real question — which ones are actively being exploited right now?
 
-VulnPilot automates this process in seconds on typical scan files.
+VulnPilot answers that question in seconds using real-world exploit data — not just severity scores.
 
 ---
 
@@ -51,7 +38,50 @@ VulnPilot automates this process in seconds on typical scan files.
 | Sorting by CVSS score alone | Uses KEV + EPSS + CVSS composite scoring |
 | Manual triage taking hours | Automated prioritization in seconds |
 | Uploading scans to cloud services | Local-first — data never leaves your machine |
-| Enterprise-only platforms | Developer Preview — free and open source |
+| Enterprise-only platforms | Community Preview — free and open source |
+
+---
+
+## How it works
+
+```
+vulnpilot analyze scan.csv
+```
+
+Output:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  VulnPilot by PatchVex — Vulnerability Prioritization
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Total findings        : 5,482
+  Unique hosts          : 47
+  Critical              : 142
+  KEV matches           : 19
+  EPSS >= 90%           : 31
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #    Score   Priority      Host              CVE                Finding
+  ───────────────────────────────────────────────────────────────────────
+  1    100.0   CRITICAL NOW  192.168.1.10      CVE-2021-44228     Log4Shell ★KEV
+  2    100.0   CRITICAL NOW  192.168.1.25      CVE-2023-34362     MOVEit SQL Injection ★KEV
+  3    99.8    CRITICAL NOW  192.168.1.15      CVE-2020-1472      Zerologon ★KEV
+  4    99.7    CRITICAL NOW  192.168.1.11      CVE-2021-26084     Confluence RCE ★KEV
+  5    11.5    LOW           192.168.1.10      N/A                SSH Weak Ciphers
+
+  ★ KEV = CISA Known Exploited Vulnerability — highest remediation priority
+        based on active exploitation in the wild.
+```
+
+VulnPilot cross-references your findings against three data sources — all processed locally:
+
+| Source | What it tells you |
+|---|---|
+| **CISA KEV** | Confirmed exploited in the wild right now |
+| **FIRST EPSS** | Probability of exploitation in next 30 days |
+| **CVSS** | Severity context and baseline scoring |
+
+**Composite score = KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)**
 
 ---
 
@@ -59,29 +89,23 @@ VulnPilot automates this process in seconds on typical scan files.
 
 Many organizations prohibit uploading vulnerability scan data to third-party cloud services. VulnPilot performs all analysis locally on your machine.
 
-No customer vulnerability data is transmitted outside your environment.
-
----
-
-## Architecture
-
 ```
-          Public Threat Intelligence
-      +-------------------------------+
-      |  CISA KEV      FIRST EPSS     |
-      +---------------+---------------+
-                      |
-              vulnpilot update-feeds
-                      |
-          ~/.vulnpilot/feeds/ (local cache)
-                      |
-              vulnpilot analyze
-                      |
-      Nessus CSV (Local Machine Only)
-                      |
-         Composite Risk Engine
-                      |
-         Prioritized Findings
+        Public Threat Intelligence
+    +-------------------------------+
+    |  CISA KEV      FIRST EPSS     |
+    +---------------+---------------+
+                    |
+            vulnpilot update-feeds
+                    |
+        ~/.vulnpilot/feeds/ (local cache)
+                    |
+            vulnpilot analyze
+                    |
+    Nessus CSV (Local Machine Only)
+                    |
+       Composite Risk Engine
+                    |
+       Prioritized Findings
 ```
 
 Only public threat intelligence feeds are downloaded. No API keys required. Your scan data never leaves your machine.
@@ -107,6 +131,9 @@ vulnpilot update-feeds
 # Analyze a Nessus CSV export
 vulnpilot analyze scan.csv
 
+# Export HTML report
+vulnpilot analyze scan.csv --html report.html
+
 # Show top N hosts by aggregate risk
 vulnpilot analyze scan.csv --top-hosts 5
 
@@ -119,43 +146,25 @@ vulnpilot analyze scan.csv --no-colour
 
 ---
 
-## Example output
+## HTML Report
 
+Generate a shareable, self-contained HTML report:
+
+```bash
+vulnpilot analyze scan.csv --html report.html
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  VulnPilot by PatchVex — Vulnerability Prioritization
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total findings        : 5,482
-  Unique hosts          : 47
-  Critical              : 142
-  KEV matches           : 19
-  EPSS >= 90%           : 31
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  #    Score   Priority      Host              CVE                Finding
-  ───────────────────────────────────────────────────────────────────────
-  1    100.0   CRITICAL NOW  192.168.1.10      CVE-2021-44228     Log4Shell ★KEV
-  2    100.0   CRITICAL NOW  192.168.1.25      CVE-2023-34362     MOVEit SQL Injection ★KEV
-  3    99.8    CRITICAL NOW  192.168.1.15      CVE-2020-1472      Zerologon ★KEV
-  4    99.7    CRITICAL NOW  192.168.1.11      CVE-2021-26084     Confluence RCE ★KEV
-  5    11.5    LOW           192.168.1.10      N/A                SSH Weak Ciphers
-
-  ★ KEV = CISA Known Exploited Vulnerability — highest remediation priority
-        based on active exploitation in the wild.
-
-  TOP 10 HOSTS BY AGGREGATE RISK
-   1. 192.168.1.10    score=122.0 [1 KEV] [1 critical]
-   2. 192.168.1.25    score=100.0 [1 KEV] [1 critical]
-   3. 192.168.1.15    score=99.8  [1 KEV] [1 critical]
-```
+The report includes:
+- Executive summary with KEV and EPSS highlights
+- Prioritized findings table with colour-coded risk scores
+- Top 10 hosts by aggregate risk with visual score bars
+- PatchVex branding and upgrade CTA
 
 ---
 
 ## How scoring works
 
 The scoring algorithm is deterministic, transparent, and fully documented.
-
-VulnPilot uses a composite risk score that combines four signals:
 
 | Signal | Weight | Source |
 |---|---|---|
@@ -164,9 +173,9 @@ VulnPilot uses a composite risk score that combines four signals:
 | CVSS base score | 15% | Severity context |
 | Scanner risk rating | 10% | Nessus severity label |
 
-The composite score is intentionally opinionated. Known exploited vulnerabilities receive the greatest weight because active exploitation is a stronger predictor of remediation priority than severity alone. EPSS estimates exploitation likelihood in the next 30 days, while CVSS and scanner severity provide additional context for findings without EPSS data.
+The composite score is intentionally opinionated. Known exploited vulnerabilities receive the greatest weight because active exploitation is a stronger predictor of remediation priority than severity alone. Any KEV finding scores a minimum of 75 regardless of other factors.
 
-Any finding confirmed in the CISA KEV catalog scores a minimum of 75 regardless of other factors. The weighting model is intentionally transparent and may evolve based on community feedback and real-world usage.
+The weighting model is intentionally transparent and may evolve based on community feedback and real-world usage.
 
 > **Note**
 >
@@ -201,7 +210,7 @@ Feeds are cached at `~/.vulnpilot/feeds/` on your machine. No API keys required.
 vulnpilot update-feeds
 ```
 
-The GitHub repository also runs an automated daily feed sync via GitHub Actions, publishing optimized feed files for the CLI to consume.
+The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 
 ---
 
@@ -220,7 +229,7 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions,
 
 ## Roadmap
 
-**Current — v0.1.0 (Developer Preview)**
+**v0.1.0 — Community Preview ✅**
 - [x] Nessus CSV parser
 - [x] CISA KEV enrichment
 - [x] FIRST EPSS enrichment
@@ -230,12 +239,12 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions,
 - [x] Free tier — top 20 findings
 - [x] GitHub Actions daily feed automation
 
-**v0.2.0**
-- [ ] HTML report export
+**v0.2.0 — Released ✅**
+- [x] HTML report export — `vulnpilot analyze scan.csv --html report.html`
 - [ ] PDF report export
 
 **v0.3.0**
-- [ ] Jira integration
+- [ ] Jira integration — auto-create tickets
 - [ ] Slack notifications
 - [ ] Scheduled scans
 
