@@ -328,6 +328,15 @@ Future development priorities are driven by community feedback and real-world us
 
 ---
 
+## Looking for early users
+
+If you run Nessus or Qualys and are willing to test VulnPilot on a real scan
+(non-production exports welcome), your feedback directly shapes the roadmap.
+Open a [GitHub issue](https://github.com/PatchVex/vulnpilot/issues), start a
+[Discussion](https://github.com/PatchVex/vulnpilot/discussions), or email
+hello@patchvex.com. Ten minutes of your honest reaction is worth more than
+a hundred stars.
+
 ## Contributing
 
 Issues, bug reports, and pull requests are welcome.
