@@ -27,7 +27,9 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 Security teams often spend hours manually triaging scan results. Your Nessus export contains thousands of findings. CVSS says hundreds are Critical. The real question — which ones are actively being exploited right now?
 
-VulnPilot answers that question in seconds using real-world exploit data — not just severity scores.
+And when the audit comes — SOC 2, ISO 27001, HIPAA, DPDP — the question changes: *can you prove how you prioritize and remediate?*
+
+VulnPilot answers both, in seconds, using real-world exploit data.
 
 ---
 
@@ -35,8 +37,9 @@ VulnPilot answers that question in seconds using real-world exploit data — not
 
 | Instead of | VulnPilot |
 |---|---|
-| Sorting by CVSS score alone | Uses KEV + EPSS + CVSS composite scoring |
+| Sorting by CVSS score alone | KEV + EPSS + CVSS composite scoring |
 | Manual triage taking hours | Automated prioritization in seconds |
+| Scrambling for audit evidence | One-command audit evidence pack |
 | Uploading scans to cloud services | Local-first — data never leaves your machine |
 | Enterprise-only platforms | Community Preview — free and open source |
 
@@ -85,6 +88,39 @@ VulnPilot cross-references your findings against three data sources — all proc
 
 ---
 
+## Audit Evidence Pack — NEW in v0.3.0
+
+Auditors across SOC 2 (CC7.1), ISO 27001 (A.8.8), HIPAA and DPDP all ask for the same thing: proof of a documented, risk-based vulnerability management process. The most common audit gap is showing thousands of findings with no evidence of how they are prioritized.
+
+VulnPilot generates that evidence in one command:
+
+```bash
+vulnpilot analyze scan.csv --evidence soc2
+```
+
+The evidence pack includes:
+- Scan metadata — timestamped, with source file reference
+- The documented prioritization methodology (KEV / EPSS / CVSS weights)
+- Prioritized findings with KEV flags
+- SOC 2 CC7.1 control mapping statement
+- Management review and sign-off block
+
+Output is a clean Markdown file — convert to PDF with your tool of choice and hand it to your auditor.
+
+**Currently supported:** SOC 2 (CC7.1). ISO 27001, DPDP, and HIPAA packs are next on the roadmap.
+
+---
+
+## Local Scan History — NEW in v0.3.0
+
+Every analysis run is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` — on your machine only, never transmitted.
+
+Why this matters: SOC 2 Type II audits require evidence that your process operated consistently over a 6–12 month observation period. That history cannot be recreated retroactively. VulnPilot starts building your evidence trail from your very first scan.
+
+Upcoming releases use this history for remediation verification (`vulnpilot verify`) and trend reporting.
+
+---
+
 ## Why local-first?
 
 Many organizations prohibit uploading vulnerability scan data to third-party cloud services. VulnPilot performs all analysis locally on your machine.
@@ -105,7 +141,7 @@ Many organizations prohibit uploading vulnerability scan data to third-party clo
                     |
        Composite Risk Engine
                     |
-       Prioritized Findings
+    Prioritized Findings + Evidence Pack
 ```
 
 Only public threat intelligence feeds are downloaded. No API keys required. Your scan data never leaves your machine.
@@ -130,6 +166,12 @@ vulnpilot update-feeds
 
 # Analyze a Nessus CSV export
 vulnpilot analyze scan.csv
+
+# Generate a SOC 2 audit evidence pack
+vulnpilot analyze scan.csv --evidence soc2
+
+# Evidence pack with custom output path
+vulnpilot analyze scan.csv --evidence soc2 --evidence-out q3_evidence.md
 
 # Export HTML report
 vulnpilot analyze scan.csv --html report.html
@@ -158,7 +200,6 @@ The report includes:
 - Executive summary with KEV and EPSS highlights
 - Prioritized findings table with colour-coded risk scores
 - Top 10 hosts by aggregate risk with visual score bars
-- PatchVex branding and upgrade CTA
 
 ---
 
@@ -193,6 +234,7 @@ The weighting model is intentionally transparent and may evolve based on communi
 - No telemetry or analytics
 - No API keys required
 - Works air-gapped after initial feed download
+- Scan history stored locally at `~/.vulnpilot/history.db` — your machine only, delete it anytime
 - Open source — inspect every line of code
 
 ---
@@ -235,29 +277,28 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] FIRST EPSS enrichment
 - [x] Composite risk scoring
 - [x] Prioritized terminal output
-- [x] Top hosts by aggregate risk
-- [x] Free tier — top 20 findings
 - [x] GitHub Actions daily feed automation
 
 **v0.2.0 — Released ✅**
-- [x] HTML report export — `vulnpilot analyze scan.csv --html report.html`
-- [ ] PDF report export
+- [x] HTML report export
 
-**v0.3.0**
-- [ ] Jira integration — auto-create tickets
-- [ ] Slack notifications
-- [ ] Scheduled scans
+**v0.3.0 — Released ✅**
+- [x] SOC 2 audit evidence pack — `--evidence soc2`
+- [x] Local scan history (foundation for verification and trends)
 
-**v0.4.0**
+**v0.4.0 — Next**
+- [ ] Remediation verification — `vulnpilot verify` (prove findings were fixed)
+- [ ] Trend reporting across scan history
+- [ ] ISO 27001 evidence pack
+
+**Later**
+- [ ] DPDP and HIPAA evidence packs
+- [ ] Plain-English remediation guidance
+- [ ] Weekly digest
 - [ ] Qualys CSV support
-- [ ] REST API
+- [ ] Jira / Slack integration
 
-**v1.0.0**
-- [ ] Rapid7 and OpenVAS support
-- [ ] Self-hosted Docker edition
-- [ ] Team features
-
-Future development priorities will be driven by community feedback and real-world usage.
+Future development priorities are driven by community feedback and real-world usage.
 
 ---
 
