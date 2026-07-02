@@ -45,6 +45,19 @@ def cmd_analyze(args: argparse.Namespace) -> int:
            epss_path=Path(args.epss) if args.epss else None)
 
     scored = score_all(findings)
+
+    from vulnpilot import history as _history
+    _history.record_scan(scored, scan_file=Path(args.csv))
+
+    if getattr(args, "evidence", None):
+        from vulnpilot.evidence import generate_evidence_pack
+        _out = generate_evidence_pack(
+            findings=scored,
+            framework=args.evidence,
+            scan_file=Path(args.csv),
+            output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
+        )
+        print(f"\n  Evidence pack written: {_out}")
     is_paid = args.all or bool(args.license)
     limit   = len(scored) if is_paid else FREE_TIER_LIMIT
 
@@ -100,6 +113,10 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Show all findings [Professional Edition]")
     analyze.add_argument("--license", metavar="KEY",
                          help="License key for Professional Edition")
+    analyze.add_argument("--evidence", choices=["soc2"], metavar="FRAMEWORK",
+                         help="Generate audit evidence pack (soc2; more frameworks coming)")
+    analyze.add_argument("--evidence-out", metavar="FILE",
+                         help="Evidence pack output path (default: evidence_<fw>_<date>.md)")
     analyze.add_argument("--html", metavar="FILE",
                          help="Export HTML report to FILE (e.g. report.html)")
 
