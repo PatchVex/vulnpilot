@@ -193,7 +193,7 @@ vulnpilot analyze scan.csv --top-hosts 5
 vulnpilot analyze scan.csv --kev ./kev.json --epss ./epss.csv.gz
 
 # Disable colour output (for CI pipelines)
-vulnpilot analyze scan.csv --no-colour
+vulnpilot --no-colour analyze scan.csv
 ```
 
 ---
