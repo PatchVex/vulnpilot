@@ -174,6 +174,12 @@ vulnpilot analyze scan.csv
 # Generate a SOC 2 audit evidence pack
 vulnpilot analyze scan.csv --evidence soc2
 
+# Verify remediation against your previous scan
+vulnpilot verify new_scan.csv
+
+# Posture trend across all recorded scans
+vulnpilot trend
+
 # Evidence pack with custom output path
 vulnpilot analyze scan.csv --evidence soc2 --evidence-out q3_evidence.md
 
@@ -292,10 +298,15 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] SOC 2 audit evidence pack — `--evidence soc2`
 - [x] Local scan history (foundation for verification and trends)
 
-**v0.4.0 — Next**
-- [ ] Remediation verification — `vulnpilot verify` (prove findings were fixed)
-- [ ] Trend reporting across scan history
+**v0.4.0 — Released ✅**
+- [x] Remediation verification — `vulnpilot verify` (✓ Verified Fixed / ● Still Open / + New)
+- [x] Scan-scope guard — hosts missing from a new scan are never counted as fixed
+- [x] Posture trend — `vulnpilot trend`
+
+**v0.5.0 — Next**
 - [ ] ISO 27001 evidence pack
+- [ ] Verification section inside evidence packs
+- [ ] Plain-English remediation guidance
 
 **Later**
 - [ ] DPDP and HIPAA evidence packs

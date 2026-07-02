@@ -121,9 +121,71 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Export HTML report to FILE (e.g. report.html)")
 
     feeds = sub.add_parser("update-feeds", help="Download latest KEV and EPSS feeds")
+
+    verify_p = sub.add_parser("verify", help="Verify remediation: diff a new scan against history")
+    verify_p.add_argument("csv", help="New Nessus CSV export to verify")
+    verify_p.add_argument("--kev", metavar="FILE", help="Local KEV JSON file")
+    verify_p.add_argument("--epss", metavar="FILE", help="Local EPSS file")
+    verify_p.add_argument("--no-colour", action="store_true", help="Disable colour output")
+
+    sub.add_parser("trend", help="Show findings trend across recorded scan history")
     feeds.add_argument("--cache", help="Cache directory for feeds")
 
     return parser
+
+
+def cmd_verify(args) -> None:
+    from vulnpilot.verify import verify_scan, render_verify
+    from vulnpilot import history as _history
+
+    findings = parse_nessus_csv(Path(args.csv))
+    if not findings:
+        print("\n  No actionable findings in this CSV.")
+        return
+    enrich(findings,
+           kev_path=Path(args.kev) if getattr(args, "kev", None) else None,
+           epss_path=Path(args.epss) if getattr(args, "epss", None) else None)
+    scored = score_all(findings)
+
+    try:
+        result = verify_scan(scored)
+    except RuntimeError as e:
+        print(f"\n  {e}")
+        return
+
+    print(render_verify(result, use_colour=not getattr(args, "no_colour", False)))
+    _history.record_scan(scored, scan_file=Path(args.csv))
+
+
+def cmd_trend(args) -> None:
+    import sqlite3 as _sql
+    from vulnpilot import history as _history
+
+    try:
+        conn = _sql.connect(_history.DB_PATH)
+        rows = conn.execute(
+            "SELECT timestamp_utc, total_findings, kev_count, critical_count"
+            " FROM scan_history ORDER BY timestamp_utc"
+        ).fetchall()
+        conn.close()
+    except Exception:
+        rows = []
+
+    if not rows:
+        print("\n  No scan history yet. Run 'vulnpilot analyze <scan.csv>' first.")
+        return
+
+    print("\n  VulnPilot — Posture Trend\n")
+    print(f"  {'Date':<12}{'Findings':>10}{'KEV':>7}{'Critical':>10}")
+    print("  " + "─" * 39)
+    for ts, total, kev, crit in rows:
+        print(f"  {ts[:10]:<12}{total:>10}{kev:>7}{crit:>10}")
+    first, last = rows[0], rows[-1]
+    d_total, d_kev = last[1] - first[1], last[2] - first[2]
+    def arrow(v): return ("▼" if v < 0 else "▲" if v > 0 else "→") + f" {abs(v)}"
+    print("  " + "─" * 39)
+    print(f"  Since first scan: findings {arrow(d_total)}, KEV {arrow(d_kev)}")
+    print()
 
 
 def main() -> None:
@@ -135,6 +197,10 @@ def main() -> None:
         sys.exit(0)
     if args.command == "analyze":
         sys.exit(cmd_analyze(args))
+    elif args.command == "verify":
+        cmd_verify(args)
+    elif args.command == "trend":
+        cmd_trend(args)
     elif args.command == "update-feeds":
         sys.exit(cmd_update_feeds(args))
 
