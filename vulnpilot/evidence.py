@@ -56,6 +56,7 @@ def generate_evidence_pack(
     framework: str,
     scan_file: Optional[Path] = None,
     output_path: Optional[Path] = None,
+    verify_result=None,
 ) -> Path:
     if framework not in FRAMEWORKS:
         supported = ", ".join(sorted(FRAMEWORKS))
@@ -75,6 +76,42 @@ def generate_evidence_pack(
     )
     hist_n = history.scan_count()
     hist_since = history.first_scan_date()
+
+    verification_section = ""
+    if verify_result is not None:
+        vs = verify_result.summary
+        scope_note = (
+            "\n> **Scope note:** {n} host(s) present in the baseline scan were absent "
+            "from this scan ({hosts}). Findings on these hosts are excluded from "
+            "verified-fixed counts and require scope confirmation.\n".format(
+                n=vs["out_of_scope_hosts"],
+                hosts=", ".join(verify_result.out_of_scope_hosts[:5]) +
+                      ("…" if len(verify_result.out_of_scope_hosts) > 5 else ""))
+            if verify_result.out_of_scope_hosts else ""
+        )
+        fixed_rows = "\n".join(
+            "| {h} | {c} | {n} |".format(
+                h=d.get("host",""), c=d.get("cve") or "-",
+                n=(d.get("name") or "")[:50].replace("|","/"))
+            for d in verify_result.fixed[:15]
+        ) or "| — | — | No findings verified fixed in this cycle |"
+        verification_section = (
+            "## 4b. Remediation verification (against baseline scan {base})\n\n"
+            "| Status | Count |\n|---|---|\n"
+            "| ✓ Verified fixed (absent in current scan, host in scope) | {f} |\n"
+            "| ● Still open | {o} |\n"
+            "| + New findings | {n} |\n"
+            "{scope}"
+            "\n**Verified fixed findings:**\n\n"
+            "| Host | CVE | Finding |\n|---|---|---|\n{rows}\n\n"
+            "Verification methodology: findings are matched between scans by "
+            "(host, plugin, port) identity. A finding is reported as verified "
+            "fixed only when it is absent from the current scan AND its host "
+            "remains within scan scope — hosts missing from the current scan "
+            "are never counted as remediated.\n\n"
+        ).format(base=verify_result.baseline_date, f=vs["fixed"],
+                 o=vs["still_open"], n=vs["new"], scope=scope_note,
+                 rows=fixed_rows)
 
     history_line = (
         f"This organisation has {hist_n} recorded analysis run(s) in its local "
@@ -135,7 +172,7 @@ expectations.
 
 Full machine-readable results are retained locally by the organisation.
 
-## 5. Control mapping statement
+{verification_section}## 5. Control mapping statement
 
 The process evidenced above supports **{fw['control']}** by demonstrating:
 

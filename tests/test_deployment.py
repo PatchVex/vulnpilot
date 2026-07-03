@@ -69,3 +69,28 @@ def test_package_builds():
     r = subprocess.run([sys.executable, "-m", "build", "--wheel", "--no-isolation"],
                        capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0, r.stderr[-2000:]
+
+
+def test_no_identity_leaks():
+    """No sensitive identifiers in tracked files.
+
+    Terms are read from a local file OUTSIDE the repo so the list itself
+    is never published. Test skips silently if the file doesn't exist
+    (e.g., in CI or on contributor machines).
+    """
+    import subprocess
+    terms_file = Path.home() / ".patchvex" / "banned-terms.txt"
+    if not terms_file.exists():
+        pytest.skip("no local banned-terms file")
+    banned = [t.strip().lower() for t in terms_file.read_text().splitlines()
+              if t.strip()]
+    tracked = subprocess.run(["git", "ls-files"], capture_output=True,
+                             text=True, cwd=ROOT).stdout.splitlines()
+    hits = []
+    for rel in tracked:
+        fp = ROOT / rel
+        if fp.suffix in (".png", ".ico", ".gz", ".pyc") or not fp.exists():
+            continue
+        text = fp.read_text(errors="ignore").lower()
+        hits += [f"{rel}: <term {i}>" for i, t in enumerate(banned) if t in text]
+    assert not hits, f"Identity leak in tracked files: {hits}"

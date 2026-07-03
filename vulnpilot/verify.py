@@ -129,16 +129,30 @@ def render_verify(result: VerifyResult, use_colour: bool = True) -> str:
         GREEN = RED = YELLOW = RESET = BOLD = ""
 
     s = result.summary
+    in_scope_baseline = s["fixed"] + s["still_open"]
+    pct = round(100 * s["fixed"] / in_scope_baseline) if in_scope_baseline else 0
+    bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
     lines = [
         "",
         "━" * 60,
         f"  {BOLD}VulnPilot — Remediation Verification{RESET}",
         f"  Baseline scan: {result.baseline_date}",
         "━" * 60,
-        f"  {GREEN}✓ Verified fixed{RESET}      : {s['fixed']}",
-        f"  {YELLOW}● Still open{RESET}          : {s['still_open']}",
-        f"  {RED}+ New findings{RESET}        : {s['new']}",
+        f"  Baseline findings (in scope) : {in_scope_baseline}",
+        f"  {GREEN}✓ Verified fixed{RESET}             : {s['fixed']} ({pct}%)",
+        f"  {YELLOW}● Still open{RESET}                 : {s['still_open']}",
+        f"  {RED}+ New findings{RESET}               : {s['new']}",
+        f"  Remediation progress         : {GREEN}{bar}{RESET} {pct}%",
     ]
+    kev_fixed = sum(1 for d in result.fixed if d.get("kev"))
+    kev_open = sum(1 for d in result.still_open if d.get("kev"))
+    kev_base = kev_fixed + kev_open
+    if kev_base:
+        lines.append(f"  {BOLD}KEV remediation{RESET}              : "
+                     f"{kev_fixed} / {kev_base} verified fixed")
+        if kev_open:
+            lines.append(f"  {RED}⚠ {kev_open} KEV finding(s) remain open — "
+                         f"highest audit and exploitation risk{RESET}")
     if result.out_of_scope_hosts:
         lines.append(
             f"  ⚠ Hosts not in new scan: {s['out_of_scope_hosts']} "

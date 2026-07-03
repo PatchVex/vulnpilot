@@ -50,3 +50,23 @@ def test_history_records_scan(tmp_path, monkeypatch):
 def test_history_never_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "DB_PATH", Path("/nonexistent/dir/x.db"))
     assert history.record_scan(_scored()) is None
+
+
+def test_evidence_pack_with_verification(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    from vulnpilot.verify import verify_scan
+
+    history.record_scan(_scored(), scan_file=SAMPLE)
+    # remediate one finding, drop one host entirely
+    new = [f for f in _scored()
+           if f.cve != "CVE-2021-44228" and f.host != "192.168.1.15"]
+    result = verify_scan(new)
+
+    out = generate_evidence_pack(new, "soc2", scan_file=SAMPLE,
+                                 output_path=tmp_path / "p.md",
+                                 verify_result=result)
+    text = out.read_text()
+    assert "4b. Remediation verification" in text
+    assert "CVE-2021-44228" in text            # in verified-fixed table
+    assert "192.168.1.15" in text              # scope note
+    assert "never counted as remediated" in text

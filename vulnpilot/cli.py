@@ -127,6 +127,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify_p.add_argument("--kev", metavar="FILE", help="Local KEV JSON file")
     verify_p.add_argument("--epss", metavar="FILE", help="Local EPSS file")
     verify_p.add_argument("--no-colour", action="store_true", help="Disable colour output")
+    verify_p.add_argument("--evidence", choices=["soc2"], metavar="FRAMEWORK",
+                          help="Generate evidence pack including verification results")
+    verify_p.add_argument("--evidence-out", metavar="FILE",
+                          help="Evidence pack output path")
 
     sub.add_parser("trend", help="Show findings trend across recorded scan history")
     feeds.add_argument("--cache", help="Cache directory for feeds")
@@ -155,6 +159,17 @@ def cmd_verify(args) -> None:
 
     print(render_verify(result, use_colour=not getattr(args, "no_colour", False)))
     _history.record_scan(scored, scan_file=Path(args.csv))
+
+    if getattr(args, "evidence", None):
+        from vulnpilot.evidence import generate_evidence_pack
+        _out = generate_evidence_pack(
+            findings=scored,
+            framework=args.evidence,
+            scan_file=Path(args.csv),
+            output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
+            verify_result=result,
+        )
+        print(f"  Evidence pack (with verification): {_out}")
 
 
 def cmd_trend(args) -> None:
