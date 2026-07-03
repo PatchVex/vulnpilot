@@ -25,6 +25,25 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 ---
 
+## Screenshots
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/terminal-screenshot.png" alt="VulnPilot terminal output showing prioritized findings, KEV matches, and a composite risk score table" width="100%">
+<p align="center"><sub>Terminal output — <code>vulnpilot analyze scan.csv</code></sub></p>
+</td>
+<td width="50%">
+<img src="assets/report-screenshot.png" alt="VulnPilot self-contained HTML report with summary cards, executive summary, and a prioritized findings table" width="100%">
+<p align="center"><sub>HTML report — <code>vulnpilot analyze scan.csv --html report.html</code></sub></p>
+</td>
+</tr>
+</table>
+
+**[View the full sample report →](https://htmlpreview.github.io/?https://github.com/PatchVex/vulnpilot/blob/main/assets/sample-report.html)** — real output generated from [`data/sample/sample_nessus.csv`](data/sample/sample_nessus.csv), not a mockup.
+
+---
+
 ## The problem
 
 Security teams often spend hours manually triaging scan results. Your Nessus export contains thousands of findings. CVSS says hundreds are Critical. The real question — which ones are actively being exploited right now?
@@ -44,6 +63,17 @@ VulnPilot answers both, in seconds, using real-world exploit data.
 | Scrambling for audit evidence | One-command audit evidence pack |
 | Uploading scans to cloud services | Local-first — data never leaves your machine |
 | Enterprise-only platforms | Community Preview — free and open source |
+
+### CVSS-only prioritization is why triage takes hours
+
+A typical mid-size scan flags **hundreds of findings as CVSS Critical (9.0+)**. Teams can't patch all of them this sprint, so CVSS alone gives no way to pick the first ten. It also has two structural problems:
+
+- **It ignores exploitation.** CVSS scores severity *if* exploited — it says nothing about whether anyone actually is. A 9.8-scored bug sitting unexploited for years and a 7.5-scored bug being mass-exploited this week can score the same or backwards.
+- **It doesn't move.** A CVSS score is fixed at publication. EPSS is recalculated daily as real-world exploitation activity changes, and KEV is updated the moment CISA confirms active exploitation — CVSS alone can't reflect that a quiet CVE went hot last Tuesday.
+
+In the [sample scan](#screenshots) above, CVSS alone flags 4 of 6 findings as Critical (9.0+) — offering no way to rank them against each other. VulnPilot's composite score shows all 4 are CISA KEV — confirmed exploited in the wild — and ranks them 99.7–100, while CVSS-only triage would have you eyeballing four "Critical" rows with no tiebreaker.
+
+**VulnPilot's answer:** blend confirmed exploitation (KEV), predicted exploitation probability (EPSS), and severity (CVSS) into one deterministic, re-runnable score — so "what's Critical" turns into "what's actually urgent, and in what order."
 
 ---
 
@@ -206,10 +236,14 @@ Generate a shareable, self-contained HTML report:
 vulnpilot analyze scan.csv --html report.html
 ```
 
+<img src="assets/report-screenshot.png" alt="VulnPilot HTML report" width="720">
+
 The report includes:
 - Executive summary with KEV and EPSS highlights
 - Prioritized findings table with colour-coded risk scores
 - Top 10 hosts by aggregate risk with visual score bars
+
+**[View a real sample report →](https://htmlpreview.github.io/?https://github.com/PatchVex/vulnpilot/blob/main/assets/sample-report.html)**
 
 ---
 
