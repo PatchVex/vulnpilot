@@ -27,6 +27,10 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 ## Screenshots
 
+**See it in action:**
+
+<img src="assets/demo.gif" alt="Animated demo of vulnpilot analyze scan.csv — running the command and getting back a prioritized findings table with KEV matches highlighted" width="720">
+
 <table>
 <tr>
 <td width="50%">
