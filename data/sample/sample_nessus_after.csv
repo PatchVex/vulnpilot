@@ -1,0 +1,10 @@
+Plugin ID,CVE,CVSS v3.0 Base Score,CVSS v2.0 Base Score,Risk,Host,Protocol,Port,Name,Synopsis,Description,Solution,See Also,Plugin Output
+19506,,,,None,192.168.1.10,tcp,0,Nessus Scan Information,Information about the Nessus scan.,Plugin info.,N/A,,
+19506,,,,None,192.168.1.11,tcp,0,Nessus Scan Information,Information about the Nessus scan.,Plugin info.,N/A,,
+19506,,,,None,192.168.1.15,tcp,0,Nessus Scan Information,Information about the Nessus scan.,Plugin info.,N/A,,
+19506,,,,None,192.168.1.25,tcp,0,Nessus Scan Information,Information about the Nessus scan.,Plugin info.,N/A,,
+57608,CVE-2021-26084,9.8,9.0,Critical,192.168.1.11,tcp,8090,Confluence Server RCE,OGNL injection RCE.,Atlassian Confluence OGNL injection.,Upgrade to 7.13.0+.,,Version 7.12.3 detected
+64786,CVE-2023-34362,10.0,,Critical,192.168.1.25,tcp,443,MOVEit Transfer SQL Injection,SQL injection allows data theft.,Unauthenticated SQL injection.,Apply Progress patch MOVETIT-2023-0001.,,MOVEit 2021.0.6 detected
+19506,,5.0,,Medium,192.168.1.10,tcp,22,SSH Weak Ciphers,Server supports weak ciphers.,RC4 and 3DES enabled.,Disable weak ciphers in sshd_config.,,RC4 detected
+10862,,4.3,,Medium,192.168.1.10,tcp,443,SSL Certificate Expiry Warning,SSL cert expiring soon.,Certificate expires within 30 days.,Renew SSL certificate.,,Expires in 18 days
+187315,CVE-2023-48795,5.9,,Medium,192.168.1.10,tcp,22,SSH Terrapin Prefix Truncation,SSH transport protocol weakness.,Terrapin attack allows message truncation in SSH.,Update OpenSSH to 9.6+.,,OpenSSH 9.2 detected

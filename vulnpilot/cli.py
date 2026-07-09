@@ -126,7 +126,6 @@ def build_parser() -> argparse.ArgumentParser:
     verify_p.add_argument("csv", help="New Nessus CSV export to verify")
     verify_p.add_argument("--kev", metavar="FILE", help="Local KEV JSON file")
     verify_p.add_argument("--epss", metavar="FILE", help="Local EPSS file")
-    verify_p.add_argument("--no-colour", action="store_true", help="Disable colour output")
     verify_p.add_argument("--evidence", choices=["soc2"], metavar="FRAMEWORK",
                           help="Generate evidence pack including verification results")
     verify_p.add_argument("--evidence-out", metavar="FILE",
@@ -138,14 +137,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def cmd_verify(args) -> None:
+def cmd_verify(args) -> int:
     from vulnpilot.verify import verify_scan, render_verify
     from vulnpilot import history as _history
 
-    findings = parse_nessus_csv(Path(args.csv))
+    try:
+        findings = parse_nessus_csv(Path(args.csv))
+    except (FileNotFoundError, ValueError) as e:
+        print(f"\n  ERROR: {e}", file=sys.stderr)
+        return 1
+
     if not findings:
         print("\n  No actionable findings in this CSV.")
-        return
+        return 0
     enrich(findings,
            kev_path=Path(args.kev) if getattr(args, "kev", None) else None,
            epss_path=Path(args.epss) if getattr(args, "epss", None) else None)
@@ -155,7 +159,7 @@ def cmd_verify(args) -> None:
         result = verify_scan(scored)
     except RuntimeError as e:
         print(f"\n  {e}")
-        return
+        return 1
 
     print(render_verify(result, use_colour=not getattr(args, "no_colour", False)))
     _history.record_scan(scored, scan_file=Path(args.csv))
@@ -171,8 +175,10 @@ def cmd_verify(args) -> None:
         )
         print(f"  Evidence pack (with verification): {_out}")
 
+    return 0
 
-def cmd_trend(args) -> None:
+
+def cmd_trend(args) -> int:
     import sqlite3 as _sql
     from vulnpilot import history as _history
 
@@ -188,7 +194,7 @@ def cmd_trend(args) -> None:
 
     if not rows:
         print("\n  No scan history yet. Run 'vulnpilot analyze <scan.csv>' first.")
-        return
+        return 0
 
     print("\n  VulnPilot — Posture Trend\n")
     print(f"  {'Date':<12}{'Findings':>10}{'KEV':>7}{'Critical':>10}")
@@ -197,10 +203,14 @@ def cmd_trend(args) -> None:
         print(f"  {ts[:10]:<12}{total:>10}{kev:>7}{crit:>10}")
     first, last = rows[0], rows[-1]
     d_total, d_kev = last[1] - first[1], last[2] - first[2]
-    def arrow(v): return ("▼" if v < 0 else "▲" if v > 0 else "→") + f" {abs(v)}"
+    def arrow(v):
+        if v == 0:
+            return "unchanged"
+        return ("▼ down " if v < 0 else "▲ up ") + str(abs(v))
     print("  " + "─" * 39)
     print(f"  Since first scan: findings {arrow(d_total)}, KEV {arrow(d_kev)}")
     print()
+    return 0
 
 
 def main() -> None:
@@ -213,9 +223,9 @@ def main() -> None:
     if args.command == "analyze":
         sys.exit(cmd_analyze(args))
     elif args.command == "verify":
-        cmd_verify(args)
+        sys.exit(cmd_verify(args))
     elif args.command == "trend":
-        cmd_trend(args)
+        sys.exit(cmd_trend(args))
     elif args.command == "update-feeds":
         sys.exit(cmd_update_feeds(args))
 
