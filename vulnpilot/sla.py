@@ -53,6 +53,9 @@ def write_default_config() -> Path:
 
 
 def _first_seen_from_history(finding_key: tuple) -> Optional[str]:
+    # TODO v0.5.1: N+1 DB reads — called once per finding. Replace with a
+    # single query that loads all history rows, then build a lookup dict in
+    # compute_all_sla() and pass first_seen timestamps in directly.
     from vulnpilot import history
     try:
         conn = sqlite3.connect(history.DB_PATH)

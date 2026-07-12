@@ -1,3 +1,3 @@
 # VulnPilot by PatchVex
-# Mission: Help security teams turn vulnerability scan data into prioritized action.
-__version__ = "0.4.1"
+# Mission: Help security teams prove they managed the vulnerabilities their scanner found.
+__version__ = "0.5.0"

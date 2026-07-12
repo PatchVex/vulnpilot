@@ -1,8 +1,8 @@
 # VulnPilot
 
-**Prioritize vulnerabilities using real-world exploit intelligence — not just severity scores.**
+**Your scanner finds them. VulnPilot proves you managed them.**
 
-Runs locally. Your data never leaves your machine.
+Prioritize vulnerabilities using real-world exploit intelligence. Track SLA compliance. Generate audit evidence. Manage exceptions. Runs locally — your data never leaves your machine.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
@@ -64,7 +64,9 @@ VulnPilot answers both, in seconds, using real-world exploit data.
 |---|---|
 | Sorting by CVSS score alone | KEV + EPSS + CVSS composite scoring |
 | Manual triage taking hours | Automated prioritization in seconds |
-| Scrambling for audit evidence | One-command audit evidence pack |
+| Scrambling for audit evidence | One-command SOC 2 and ISO 27001 evidence packs |
+| Spreadsheets to track SLA compliance | Per-finding SLA tracking against configurable policy |
+| No documented exception process | Exception register with approval tracking and audit flags |
 | Uploading scans to cloud services | Local-first — data never leaves your machine |
 | Enterprise-only platforms | Community Preview — free and open source |
 
@@ -124,26 +126,56 @@ VulnPilot cross-references your findings against three data sources — all proc
 
 ---
 
-## Audit Evidence Pack — NEW in v0.3.0
+## Audit Evidence Packs — v0.3.0+
 
-Auditors across SOC 2 (CC7.1), ISO 27001 (A.8.8), HIPAA and DPDP all ask for the same thing: proof of a documented, risk-based vulnerability management process. The most common audit gap is showing thousands of findings with no evidence of how they are prioritized.
+Auditors across SOC 2, ISO 27001, HIPAA and DPDP ask for the same thing: proof of a documented, risk-based vulnerability management process. The most common audit gap is showing thousands of findings with no evidence of how they are prioritized, tracked, and resolved.
 
 VulnPilot generates that evidence in one command:
 
 ```bash
+# SOC 2 CC7.1 evidence pack
 vulnpilot analyze scan.csv --evidence soc2
+
+# ISO 27001 Annex A 8.8 evidence pack — NEW in v0.5.0
+vulnpilot analyze scan.csv --evidence iso27001
 ```
 
 The evidence pack includes:
 - Scan metadata — timestamped, with source file reference
 - The documented prioritization methodology (KEV / EPSS / CVSS weights)
 - Prioritized findings with KEV flags
-- SOC 2 CC7.1 control mapping statement
+- Framework control mapping statement (SOC 2 CC7.1 or ISO 27001 A.8.8)
 - Management review and sign-off block
+- **SLA compliance and exception register** — when run via `vulnpilot verify` (see below)
 
 Output is a clean Markdown file — convert to PDF with your tool of choice and hand it to your auditor.
 
-**Currently supported:** SOC 2 (CC7.1). ISO 27001, DPDP, and HIPAA packs are next on the roadmap.
+**Currently supported:** SOC 2 (CC7.1), ISO 27001 (A.8.8). DPDP and HIPAA packs are on the roadmap.
+
+---
+
+## SLA Policy Configuration
+
+SLA thresholds are configurable per severity. The defaults are:
+
+| Severity | Remediation deadline |
+|---|---|
+| Critical | 7 days |
+| High | 30 days |
+| Medium | 90 days |
+| Low | 180 days |
+
+To customize, create `~/.patchvex/sla.yaml`:
+
+```yaml
+# VulnPilot SLA policy — days to remediate by severity
+critical: 7
+high: 30
+medium: 90
+low: 180
+```
+
+VulnPilot reads this file automatically on every `verify` run. If the file does not exist, the defaults above apply.
 
 ---
 
@@ -208,8 +240,19 @@ vulnpilot analyze scan.csv
 # Generate a SOC 2 audit evidence pack
 vulnpilot analyze scan.csv --evidence soc2
 
+# Generate an ISO 27001 audit evidence pack — NEW in v0.5.0
+vulnpilot analyze scan.csv --evidence iso27001
+
 # Verify remediation against your previous scan
+# — now includes SLA compliance block showing within / approaching / breached counts
 vulnpilot verify new_scan.csv
+
+# Verify with exception register — NEW in v0.5.0
+# Classifies SLA breaches as approved, expired, or unexcused (audit finding)
+vulnpilot verify new_scan.csv --exceptions exceptions.csv
+
+# Verify + evidence pack with full governance section — NEW in v0.5.0
+vulnpilot verify new_scan.csv --exceptions exceptions.csv --evidence soc2
 
 # Posture trend across all recorded scans
 vulnpilot trend
@@ -341,16 +384,17 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] Scan-scope guard — hosts missing from a new scan are never counted as fixed
 - [x] Posture trend — `vulnpilot trend`
 
-**v0.5.0 — Next**
-- [ ] ISO 27001 evidence pack
-- [ ] Verification section inside evidence packs
-- [ ] Plain-English remediation guidance
+**v0.5.0 — Released ✅**
+- [x] ISO 27001 (Annex A 8.8) audit evidence pack — `--evidence iso27001`
+- [x] SLA compliance tracking in `vulnpilot verify` — per-severity breach detection
+- [x] Exception register integration — `verify --exceptions exceptions.csv`
+- [x] Governance summary section in all evidence packs (framework-agnostic)
 
 **Later**
 - [ ] DPDP and HIPAA evidence packs
-- [ ] Plain-English remediation guidance
-- [ ] Weekly digest
 - [ ] Qualys CSV support
+- [ ] SLA breach as CI exit code gate
+- [ ] Weekly digest
 - [ ] Jira / Slack integration
 
 Future development priorities are driven by community feedback and real-world usage.

@@ -24,11 +24,62 @@ FRAMEWORKS = {
             "vulnerabilities."
         ),
     },
+    "iso27001": {
+        "title": "ISO/IEC 27001:2022 — Information Security Management",
+        "control": "Annex A 8.8",
+        "control_name": "Management of Technical Vulnerabilities",
+        "objective": (
+            "Information about technical vulnerabilities of information systems "
+            "in use shall be obtained in a timely fashion. The organisation's "
+            "exposure to such vulnerabilities shall be evaluated and appropriate "
+            "measures taken to address the associated risk."
+        ),
+    },
 }
 
 
 def _fmt(v, dash="-"):
     return v if v not in (None, "", "N/A") else dash
+
+
+def _governance_md_section(gs: dict) -> str:
+    """Render a framework-agnostic governance posture section from a summary dict.
+
+    Intentionally contains no framework-specific language so the same block
+    can be embedded in SOC 2, ISO 27001, HIPAA, PCI DSS, or any future pack.
+    """
+    rows = [
+        "| Status | Count |",
+        "|---|---|",
+        f"| Within SLA | {gs.get('within_sla', 0)} |",
+        f"| Breached — approved exception | {gs.get('breached_approved', 0)} |",
+        f"| Breached — exception expired | {gs.get('breached_expired', 0)} |",
+        f"| Breached — no exception on file | {gs.get('breached_no_exception', 0)} |",
+    ]
+    unknown = gs.get("unknown", 0)
+    if unknown:
+        rows.append(f"| No history data (first seen) | {unknown} |")
+    table = "\n".join(rows)
+
+    audit = gs.get("audit_findings", 0)
+    if audit:
+        audit_line = (
+            f"\n**Audit findings requiring action: {audit}.** "
+            "These are SLA breaches with no valid approved exception on file. "
+            "Each requires immediate remediation or a formally approved and "
+            "documented exception before the next audit cycle."
+        )
+    else:
+        audit_line = (
+            "\nNo audit findings. All SLA breaches have valid approved "
+            "exceptions, or no findings are currently in breach."
+        )
+
+    return (
+        "## 4c. SLA compliance and exception register\n\n"
+        f"{table}"
+        f"{audit_line}\n\n"
+    )
 
 
 def _findings_table(findings: List, limit: int = 25) -> str:
@@ -57,12 +108,13 @@ def generate_evidence_pack(
     scan_file: Optional[Path] = None,
     output_path: Optional[Path] = None,
     verify_result=None,
+    governance_summary: Optional[dict] = None,
 ) -> Path:
     if framework not in FRAMEWORKS:
         supported = ", ".join(sorted(FRAMEWORKS))
         raise ValueError(
             f"Unsupported framework '{framework}'. Supported: {supported}. "
-            "ISO 27001, DPDP and HIPAA packs are on the roadmap."
+            "DPDP and HIPAA packs are on the roadmap."
         )
 
     fw = FRAMEWORKS[framework]
@@ -76,6 +128,11 @@ def generate_evidence_pack(
     )
     hist_n = history.scan_count()
     hist_since = history.first_scan_date()
+
+    governance_section = (
+        _governance_md_section(governance_summary)
+        if governance_summary is not None else ""
+    )
 
     verification_section = ""
     if verify_result is not None:
@@ -172,7 +229,7 @@ expectations.
 
 Full machine-readable results are retained locally by the organisation.
 
-{verification_section}## 5. Control mapping statement
+{verification_section}{governance_section}## 5. Control mapping statement
 
 The process evidenced above supports **{fw['control']}** by demonstrating:
 

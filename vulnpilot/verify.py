@@ -123,7 +123,132 @@ def verify_scan(new_findings: List) -> VerifyResult:
     return result
 
 
-def render_verify(result: VerifyResult, use_colour: bool = True) -> str:
+def _render_governance_section(
+    sla_statuses: List,
+    use_colour: bool,
+) -> List[str]:
+    """Render SLA compliance summary lines.
+
+    Designed to grow: Task 3 will add a `governance` parameter for exception
+    and audit-finding data without requiring a rename.
+    """
+    GREEN  = "\033[92m" if use_colour else ""
+    YELLOW = "\033[93m" if use_colour else ""
+    RED    = "\033[91m" if use_colour else ""
+    RESET  = "\033[0m"  if use_colour else ""
+    BOLD   = "\033[1m"  if use_colour else ""
+
+    from collections import Counter
+    counts = Counter(s.status for s in sla_statuses)
+    breached   = counts.get("breached",    0)
+    approaching = counts.get("approaching", 0)
+    within     = counts.get("within",      0)
+    unknown    = counts.get("unknown",     0)
+
+    lines = [
+        "",
+        "━" * 60,
+        f"  {BOLD}SLA Compliance{RESET}",
+        "━" * 60,
+        f"  {GREEN}✓ Within SLA{RESET}            : {within}",
+        f"  {YELLOW}⚠ Approaching (>80%){RESET}   : {approaching}",
+        f"  {RED}✗ Breached{RESET}              : {breached}"
+        + (f"   {RED}{BOLD}← REQUIRES ACTION{RESET}" if breached else ""),
+    ]
+    if unknown:
+        lines.append(f"  — Unknown (no history)  : {unknown}")
+
+    breached_items = [s for s in sla_statuses if s.status == "breached"]
+    if breached_items:
+        lines.append(f"\n  {BOLD}Breach detail:{RESET}")
+        for s in breached_items:
+            host = s.finding_key[0] or "-"
+            lines.append(
+                f"   {RED}{host:<20}{RESET}"
+                f"{s.risk:<10}"
+                f"{s.days_open}d open   SLA: {s.sla_days}d"
+            )
+
+    return lines
+
+
+def _render_governance_classified(governance: List, use_colour: bool) -> List[str]:
+    """Render governance summary for a List[FindingGovernance] (exceptions-aware).
+
+    Called when cli.py has classified findings via exceptions.classify_all().
+    _render_governance_section() (SLAStatus fallback) is left unchanged.
+    """
+    GREEN  = "\033[92m" if use_colour else ""
+    YELLOW = "\033[93m" if use_colour else ""
+    RED    = "\033[91m" if use_colour else ""
+    RESET  = "\033[0m"  if use_colour else ""
+    BOLD   = "\033[1m"  if use_colour else ""
+
+    from collections import Counter
+    counts = Counter(g.governance_status for g in governance)
+    within         = counts.get("within_sla",            0)
+    approaching    = counts.get("approaching",            0)  # SLAStatus maps here before classify
+    approved       = counts.get("breached_approved",      0)
+    expired        = counts.get("breached_expired",       0)
+    no_exc         = counts.get("breached_no_exception",  0)
+    unknown        = counts.get("unknown",                0)
+    audit_count    = sum(1 for g in governance if g.audit_finding)
+
+    lines = [
+        "",
+        "━" * 60,
+        f"  {BOLD}Governance Summary{RESET}",
+        "━" * 60,
+        f"  {GREEN}✓ Within SLA{RESET}                     : {within}",
+    ]
+    if approaching:
+        lines.append(f"  {YELLOW}⚠ Approaching SLA (>80%){RESET}        : {approaching}")
+    if approved:
+        lines.append(f"  {GREEN}✓ Breached — approved exception{RESET} : {approved}")
+    if expired:
+        lines.append(
+            f"  {RED}✗ Breached — exception expired{RESET}  : {expired}"
+            f"   {RED}{BOLD}← AUDIT FINDING{RESET}"
+        )
+    if no_exc:
+        lines.append(
+            f"  {RED}✗ Breached — no exception{RESET}       : {no_exc}"
+            f"   {RED}{BOLD}← AUDIT FINDING{RESET}"
+        )
+    if unknown:
+        lines.append(f"  — Unknown (no history)           : {unknown}")
+    if audit_count:
+        lines.append(
+            f"\n  {RED}{BOLD}Audit findings requiring action  : {audit_count}{RESET}"
+        )
+
+    breached = [g for g in governance if g.audit_finding or
+                g.governance_status == "breached_approved"]
+    if breached:
+        lines.append(f"\n  {BOLD}Breach detail:{RESET}")
+        for g in breached:
+            s = g.sla_status
+            host = s.finding_key[0] or "-"
+            if g.governance_status == "breached_approved" and g.exception:
+                exc_note = (f"  {GREEN}{g.exception.ticket_ref} ✓ approved"
+                            f" (exp {g.exception.expiry_date}){RESET}")
+            elif g.governance_status == "breached_expired" and g.exception:
+                exc_note = f"  {RED}{g.exception.ticket_ref} ✗ expired{RESET}"
+            else:
+                exc_note = f"  {RED}no exception on file{RESET}"
+            lines.append(
+                f"   {RED}{host:<20}{RESET}"
+                f"{s.risk:<10}"
+                f"{s.days_open}d open   SLA: {s.sla_days}d"
+                f"{exc_note}"
+            )
+
+    return lines
+
+
+def render_verify(result: VerifyResult, sla_statuses: Optional[List] = None,
+                  governance: Optional[List] = None,
+                  use_colour: bool = True) -> str:
     GREEN, RED, YELLOW, RESET, BOLD = "\033[92m", "\033[91m", "\033[93m", "\033[0m", "\033[1m"
     if not use_colour:
         GREEN = RED = YELLOW = RESET = BOLD = ""
@@ -181,5 +306,11 @@ def render_verify(result: VerifyResult, use_colour: bool = True) -> str:
     block("✓ VERIFIED FIXED", result.fixed, GREEN)
     block("● STILL OPEN", result.still_open, YELLOW, show_days=True)
     block("+ NEW FINDINGS", result.new, RED)
+
+    if governance is not None:
+        lines += _render_governance_classified(governance, use_colour)
+    elif sla_statuses is not None:
+        lines += _render_governance_section(sla_statuses, use_colour)
+
     lines.append("")
     return "\n".join(lines)

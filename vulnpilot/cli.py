@@ -113,8 +113,8 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Show all findings [Professional Edition]")
     analyze.add_argument("--license", metavar="KEY",
                          help="License key for Professional Edition")
-    analyze.add_argument("--evidence", choices=["soc2"], metavar="FRAMEWORK",
-                         help="Generate audit evidence pack (soc2; more frameworks coming)")
+    analyze.add_argument("--evidence", choices=["soc2", "iso27001"], metavar="FRAMEWORK",
+                         help="Generate audit evidence pack (soc2, iso27001; more frameworks coming)")
     analyze.add_argument("--evidence-out", metavar="FILE",
                          help="Evidence pack output path (default: evidence_<fw>_<date>.md)")
     analyze.add_argument("--html", metavar="FILE",
@@ -126,7 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify_p.add_argument("csv", help="New Nessus CSV export to verify")
     verify_p.add_argument("--kev", metavar="FILE", help="Local KEV JSON file")
     verify_p.add_argument("--epss", metavar="FILE", help="Local EPSS file")
-    verify_p.add_argument("--evidence", choices=["soc2"], metavar="FRAMEWORK",
+    verify_p.add_argument("--exceptions", metavar="FILE",
+                          help="Exception register CSV (host, plugin_id, port, ticket_ref, "
+                               "approver, approved_date, expiry_date, reason)")
+    verify_p.add_argument("--evidence", choices=["soc2", "iso27001"], metavar="FRAMEWORK",
                           help="Generate evidence pack including verification results")
     verify_p.add_argument("--evidence-out", metavar="FILE",
                           help="Evidence pack output path")
@@ -140,6 +143,8 @@ def build_parser() -> argparse.ArgumentParser:
 def cmd_verify(args) -> int:
     from vulnpilot.verify import verify_scan, render_verify
     from vulnpilot import history as _history
+    from vulnpilot.sla import compute_all_sla, load_sla_config
+    from vulnpilot.exceptions import load_exceptions, classify_all
 
     try:
         findings = parse_nessus_csv(Path(args.csv))
@@ -161,17 +166,24 @@ def cmd_verify(args) -> int:
         print(f"\n  {e}")
         return 1
 
-    print(render_verify(result, use_colour=not getattr(args, "no_colour", False)))
+    sla_statuses = compute_all_sla(scored, load_sla_config())
+    exceptions_path = getattr(args, "exceptions", None)
+    exceptions_map = load_exceptions(Path(exceptions_path)) if exceptions_path else {}
+    governance = classify_all(sla_statuses, exceptions_map)
+    print(render_verify(result, sla_statuses=sla_statuses, governance=governance,
+                        use_colour=not getattr(args, "no_colour", False)))
     _history.record_scan(scored, scan_file=Path(args.csv))
 
     if getattr(args, "evidence", None):
         from vulnpilot.evidence import generate_evidence_pack
+        from vulnpilot.exceptions import governance_summary as _gov_summary
         _out = generate_evidence_pack(
             findings=scored,
             framework=args.evidence,
             scan_file=Path(args.csv),
             output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
             verify_result=result,
+            governance_summary=_gov_summary(governance),
         )
         print(f"  Evidence pack (with verification): {_out}")
 
