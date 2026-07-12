@@ -29,16 +29,16 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 **See it in action:**
 
-<img src="assets/demo.gif" alt="Animated demo of vulnpilot analyze scan.csv — running the command and getting back a prioritized findings table with KEV matches highlighted" width="720">
+<img src="https://raw.githubusercontent.com/PatchVex/vulnpilot/main/assets/demo.gif" alt="Animated demo of vulnpilot analyze scan.csv — running the command and getting back a prioritized findings table with KEV matches highlighted" width="720">
 
 <table>
 <tr>
 <td width="50%">
-<img src="assets/terminal-screenshot.png" alt="VulnPilot terminal output showing prioritized findings, KEV matches, and a composite risk score table" width="100%">
+<img src="https://raw.githubusercontent.com/PatchVex/vulnpilot/main/assets/terminal-screenshot.png" alt="VulnPilot terminal output showing prioritized findings, KEV matches, and a composite risk score table" width="100%">
 <p align="center"><sub>Terminal output — <code>vulnpilot analyze scan.csv</code></sub></p>
 </td>
 <td width="50%">
-<img src="assets/report-screenshot.png" alt="VulnPilot self-contained HTML report with summary cards, executive summary, and a prioritized findings table" width="100%">
+<img src="https://raw.githubusercontent.com/PatchVex/vulnpilot/main/assets/report-screenshot.png" alt="VulnPilot self-contained HTML report with summary cards, executive summary, and a prioritized findings table" width="100%">
 <p align="center"><sub>HTML report — <code>vulnpilot analyze scan.csv --html report.html</code></sub></p>
 </td>
 </tr>
@@ -283,7 +283,7 @@ Generate a shareable, self-contained HTML report:
 vulnpilot analyze scan.csv --html report.html
 ```
 
-<img src="assets/report-screenshot.png" alt="VulnPilot HTML report" width="720">
+<img src="https://raw.githubusercontent.com/PatchVex/vulnpilot/main/assets/report-screenshot.png" alt="VulnPilot HTML report" width="720">
 
 The report includes:
 - Executive summary with KEV and EPSS highlights
