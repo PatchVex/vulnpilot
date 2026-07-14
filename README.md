@@ -4,7 +4,9 @@
 
 Prioritize vulnerabilities using real-world exploit intelligence. Track SLA compliance. Generate audit evidence. Manage exceptions. Runs locally — your data never leaves your machine.
 
+[![CI](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/vulnpilot.svg)](https://pypistats.org/packages/vulnpilot)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
 [![Status: Community Preview](https://img.shields.io/badge/status-community%20preview-orange.svg)]()

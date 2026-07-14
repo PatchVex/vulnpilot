@@ -95,7 +95,17 @@ def cmd_update_feeds(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vulnpilot",
-        description="VulnPilot by PatchVex — Turn vulnerability scan data into prioritized action.",
+        description="VulnPilot by PatchVex — Local-first vulnerability governance. "
+                    "Your scanner finds them. VulnPilot proves you managed them.",
+        epilog="examples:\n"
+               "  vulnpilot update-feeds\n"
+               "  vulnpilot analyze scan.csv\n"
+               "  vulnpilot analyze scan.csv --evidence soc2\n"
+               "  vulnpilot verify new_scan.csv --exceptions exceptions.csv\n"
+               "  vulnpilot verify new_scan.csv --exceptions exceptions.csv --evidence iso27001\n"
+               "\n"
+               "docs: https://github.com/PatchVex/vulnpilot/tree/main/docs",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"VulnPilot {__version__}")
     parser.add_argument("--no-colour", "--no-color", action="store_true",

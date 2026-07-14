@@ -123,6 +123,10 @@ vulnpilot analyze data/sample/sample_nessus.csv
 
 # Second scan — verify remediation
 vulnpilot verify data/sample/sample_nessus_after.csv --evidence soc2
+
+# Full governance flow — a sample exception register ships too
+# (one approved exception, one expired — you'll see both classifications)
+vulnpilot verify data/sample/sample_nessus_after.csv --exceptions data/sample/sample_exceptions.csv
 ```
 
 ## Privacy

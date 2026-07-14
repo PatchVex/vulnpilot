@@ -1,0 +1,3 @@
+host,plugin_id,port,ticket_ref,approver,approved_date,expiry_date,reason
+192.168.1.11,57608,8090,JIRA-4521,CISO,2026-07-01,2026-12-31,vendor patch unavailable — compensating WAF rule in place
+192.168.1.25,64786,443,JIRA-4522,CISO,2026-01-15,2026-03-31,migration to replacement service scheduled
