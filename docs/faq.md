@@ -20,11 +20,12 @@ Almost certainly a KEV match or high EPSS — real-world exploitation
 outranks theoretical severity. Run with the finding's CVE against
 cisa.gov's KEV catalog to confirm.
 
-**The free tier shows 20 findings — why?**
-The Community Edition prioritizes the top 20. For most scans the KEV and
-high-EPSS findings that demand action fit well within that. Full output and
-report features are part of the paid tiers (in development — pricing
-publishes after early-user validation).
+**How many findings does VulnPilot show?**
+The Community Edition shows the top 20 prioritized findings. For most scans
+the KEV and high-EPSS findings that require immediate action fit within that
+limit. VulnPilot is free and open source — all governance features including
+SLA tracking, exception management, and evidence packs are available with no
+restrictions.
 
 **Which audit frameworks are supported?**
 SOC 2 (CC7.1) and ISO/IEC 27001:2022 (Annex A 8.8) evidence packs, generated

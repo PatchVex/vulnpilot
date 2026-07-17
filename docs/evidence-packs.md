@@ -52,6 +52,38 @@ posture table (see below)
 Output is Markdown. Convert to PDF with pandoc, VS Code, or any
 Markdown-to-PDF tool, then route for signature.
 
+## Completing the evidence pack
+
+VulnPilot generates the technical evidence. Before submitting to an auditor,
+complete these steps:
+
+**1. Fill in the management review table**
+
+Open the generated `.md` file and locate the sign-off section at the bottom.
+Fill in the names and dates of the people who conducted and reviewed the scan
+cycle. Print or export to PDF after signing.
+
+**2. Add remediation ownership records**
+
+The evidence pack shows what was prioritized. Auditors for CC7.1 and A.8.8
+will also ask who was assigned to fix each finding, and when. Attach your
+Jira export, ServiceNow ticket list, or equivalent as an appendix.
+
+**3. Link exceptions to formal risk acceptance**
+
+Each exception in your register should correspond to a formally approved
+risk acceptance in your risk register or GRC tool. Auditors will trace
+exception ticket references (e.g. `JIRA-4521`) back to management approval.
+Include the approval record or a reference to it alongside the evidence pack.
+
+**4. Establish a regular cadence**
+
+For SOC 2 Type II and ISO 27001 surveillance audits, a single pack is not
+sufficient — auditors want evidence of consistent operation. Run
+`vulnpilot analyze` or `vulnpilot verify` on a regular schedule and generate
+evidence packs at least quarterly. The `vulnpilot trend` output documents
+your history across the observation period.
+
 ## Supported frameworks
 
 | Framework | Control | Status |
