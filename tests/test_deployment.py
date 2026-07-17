@@ -66,6 +66,9 @@ def test_docs_exist():
 
 def test_package_builds():
     """python -m build must succeed (catches packaging config errors)."""
+    import importlib.util
+    if importlib.util.find_spec("build") is None:
+        pytest.skip("'build' package not installed")
     r = subprocess.run([sys.executable, "-m", "build", "--wheel", "--no-isolation"],
                        capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0, r.stderr[-2000:]
