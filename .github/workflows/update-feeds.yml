@@ -1,0 +1,28 @@
+name: Update Threat Feeds
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # daily at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update-feeds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install vulnpilot
+        run: pip install -e .
+
+      - name: Download KEV and EPSS feeds
+        run: vulnpilot update-feeds --cache data/feeds
+
+      - name: Commit updated feeds
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update KEV and EPSS feeds"
+          file_pattern: "data/feeds/*"

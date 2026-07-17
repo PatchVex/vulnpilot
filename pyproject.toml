@@ -10,10 +10,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["security", "vulnerability", "nessus", "cve", "kev", "epss", "devsecops", "compliance", "soc2", "iso27001", "audit", "sla", "governance"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
     "Topic :: Security",
+    "Topic :: System :: Systems Administration",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

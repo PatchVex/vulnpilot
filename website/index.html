@@ -417,6 +417,9 @@
     <div class="faq-item"><div class="faq-q">Which scanners are supported?</div><div class="faq-a">Currently Nessus CSV exports. Qualys, Rapid7, and OpenVAS support is planned.</div></div>
     <div class="faq-item"><div class="faq-q">How often are the threat feeds updated?</div><div class="faq-a">CISA KEV and FIRST EPSS feeds update daily via GitHub Actions. Run <code>vulnpilot update-feeds</code> to pull the latest data anytime.</div></div>
     <div class="faq-item"><div class="faq-q">Can I use it commercially?</div><div class="faq-a">Yes. The MIT license permits commercial use without restriction.</div></div>
+    <div class="faq-item"><div class="faq-q">Which audit frameworks does VulnPilot support?</div><div class="faq-a">SOC 2 (CC7.1) and ISO/IEC 27001:2022 (Annex A 8.8) evidence packs are available today. DPDP and HIPAA packs are planned. Evidence is generated in one command: <code>vulnpilot analyze scan.csv --evidence soc2</code></div></div>
+    <div class="faq-item"><div class="faq-q">Is the evidence enough for a real audit?</div><div class="faq-a">VulnPilot generates the technical evidence: scan metadata, prioritization methodology, findings, SLA compliance, and exception register. You still need to complete the management sign-off table and attach remediation ownership records (Jira, ServiceNow, etc.). The documentation covers exactly what to do with the generated pack.</div></div>
+    <div class="faq-item"><div class="faq-q">Is it really free?</div><div class="faq-a">Yes. VulnPilot is MIT-licensed open source software. All features — including SLA tracking, exception management, and audit evidence packs — are free. No account, no API key, no subscription.</div></div>
   </div>
 </section>
 

@@ -23,7 +23,7 @@ vulnpilot analyze scan.csv
 
 VulnPilot downloads the latest public threat intelligence, analyzes your Nessus scan locally, and shows what should be remediated first. No API keys required.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
+**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
 ---
 
@@ -216,7 +216,7 @@ Many organizations prohibit uploading vulnerability scan data to third-party clo
 
 Only public threat intelligence feeds are downloaded. No API keys required. Your scan data never leaves your machine.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
+**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
 ---
 
@@ -341,7 +341,7 @@ VulnPilot pulls two public datasets:
 
 Feeds are cached at `~/.vulnpilot/feeds/` on your machine. No API keys required.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
+**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
 ```bash
 vulnpilot update-feeds

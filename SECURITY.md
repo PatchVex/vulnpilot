@@ -4,7 +4,9 @@
 
 | Version | Supported |
 |---|---|
-| 0.1.x | ✅ |
+| 0.5.x (current) | ✅ |
+| 0.4.x | ✅ security fixes only |
+| < 0.4 | ❌ |
 
 ## Reporting a Vulnerability
 
