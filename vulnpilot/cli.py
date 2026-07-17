@@ -232,6 +232,8 @@ def cmd_verify(args) -> int:
     audit_findings = gov_summary.get("audit_findings", 0)
     fail_on_breach = getattr(args, "fail_on_breach", False)
 
+    _history.record_scan(scored, scan_file=Path(args.csv))
+
     if getattr(args, "json", False):
         payload = {
             "command": "verify",
@@ -245,13 +247,11 @@ def cmd_verify(args) -> int:
             "out_of_scope_hosts": result.out_of_scope_hosts,
             "findings": [_finding_to_dict(f) for f in scored],
         }
-        _history.record_scan(scored, scan_file=Path(args.csv))
         print(json.dumps(payload, indent=2))
         return 2 if (fail_on_breach and audit_findings) else 0
 
     print(render_verify(result, sla_statuses=sla_statuses, governance=governance,
                         use_colour=not getattr(args, "no_colour", False)))
-    _history.record_scan(scored, scan_file=Path(args.csv))
 
     if getattr(args, "evidence", None):
         from vulnpilot.evidence import generate_evidence_pack

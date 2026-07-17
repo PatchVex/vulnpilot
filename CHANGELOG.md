@@ -7,6 +7,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.0] — 2026-07-17
+
+### Added
+- **`--json` output on `analyze` and `verify`** — machine-readable JSON output; suppresses
+  terminal rendering so the result can be piped to `jq` or consumed by scripts
+- **`--sla-config FILE`** — per-invocation SLA policy override; pass a custom YAML file instead
+  of the global `~/.patchvex/sla.yaml`, enabling per-client policies without modifying the
+  default config
+- **`--fail-on-breach` on `verify`** — exits with code `2` when audit findings exist (SLA
+  breaches with no valid exception); exit `0` = clean, `1` = tool error, `2` = breach found;
+  enables `vulnpilot verify` as a hard CI pipeline gate
+
+### Fixed
+- `vulnpilot verify` recorded the scan to history twice when `--json` was used — the
+  `record_scan()` call was duplicated across the JSON and terminal output branches; consolidated
+  to a single call before branching
+
+### Internal
+- 77 automated tests passing
+
+---
+
 ## [0.5.0] — 2026-07-12
 
 ### Added
