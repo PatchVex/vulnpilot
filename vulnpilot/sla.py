@@ -23,12 +23,13 @@ class SLAStatus:
     exception_ref: Optional[str] = None
 
 
-def load_sla_config() -> dict:
-    if not CONFIG_PATH.exists():
+def load_sla_config(config_path: Optional[Path] = None) -> dict:
+    path = config_path or CONFIG_PATH
+    if not path.exists():
         return dict(DEFAULT_SLA)
     try:
         data = {}
-        for line in CONFIG_PATH.read_text().splitlines():
+        for line in path.read_text().splitlines():
             line = line.strip()
             if ":" in line and not line.startswith("#"):
                 k, _, v = line.partition(":")

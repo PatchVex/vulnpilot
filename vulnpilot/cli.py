@@ -10,6 +10,7 @@ Usage:
 """
 from __future__ import annotations
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
@@ -24,6 +25,27 @@ from vulnpilot.reports import (
 )
 
 FREE_TIER_LIMIT = 20
+
+
+def _finding_to_dict(f) -> dict:
+    return {
+        "plugin_id": f.plugin_id,
+        "name": f.name,
+        "cve": f.cve,
+        "host": f.host,
+        "port": f.port,
+        "protocol": f.protocol,
+        "risk": f.risk,
+        "cvss_v3": f.cvss_v3,
+        "cvss_v2": f.cvss_v2,
+        "epss_score": f.epss_score,
+        "epss_percentile": f.epss_percentile,
+        "kev_match": f.kev_match,
+        "priority_score": f.priority_score,
+        "priority_label": f.priority_label,
+        "synopsis": f.synopsis,
+        "solution": f.solution,
+    }
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
@@ -58,6 +80,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
         )
         print(f"\n  Evidence pack written: {_out}")
+
+    if getattr(args, "json", False):
+        payload = {
+            "command": "analyze",
+            "scan_file": args.csv,
+            "total_findings": len(scored),
+            "findings": [_finding_to_dict(f) for f in scored],
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+
     is_paid = args.all or bool(args.license)
     limit   = len(scored) if is_paid else FREE_TIER_LIMIT
 
@@ -129,6 +162,10 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Evidence pack output path (default: evidence_<fw>_<date>.md)")
     analyze.add_argument("--html", metavar="FILE",
                          help="Export HTML report to FILE (e.g. report.html)")
+    analyze.add_argument("--json", action="store_true",
+                         help="Output findings as JSON (suppresses terminal output)")
+    analyze.add_argument("--sla-config", metavar="FILE",
+                         help="Path to SLA policy YAML (default: ~/.patchvex/sla.yaml)")
 
     feeds = sub.add_parser("update-feeds", help="Download latest KEV and EPSS feeds")
 
@@ -143,6 +180,10 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Generate evidence pack including verification results")
     verify_p.add_argument("--evidence-out", metavar="FILE",
                           help="Evidence pack output path")
+    verify_p.add_argument("--json", action="store_true",
+                          help="Output verify result as JSON (suppresses terminal output)")
+    verify_p.add_argument("--sla-config", metavar="FILE",
+                          help="Path to SLA policy YAML (default: ~/.patchvex/sla.yaml)")
 
     sub.add_parser("trend", help="Show findings trend across recorded scan history")
     feeds.add_argument("--cache", help="Cache directory for feeds")
@@ -176,10 +217,31 @@ def cmd_verify(args) -> int:
         print(f"\n  {e}")
         return 1
 
-    sla_statuses = compute_all_sla(scored, load_sla_config())
+    sla_cfg_path = getattr(args, "sla_config", None)
+    sla_config = load_sla_config(Path(sla_cfg_path)) if sla_cfg_path else load_sla_config()
+    sla_statuses = compute_all_sla(scored, sla_config)
     exceptions_path = getattr(args, "exceptions", None)
     exceptions_map = load_exceptions(Path(exceptions_path)) if exceptions_path else {}
     governance = classify_all(sla_statuses, exceptions_map)
+
+    if getattr(args, "json", False):
+        from vulnpilot.exceptions import governance_summary as _gov_summary
+        payload = {
+            "command": "verify",
+            "scan_file": args.csv,
+            "baseline_date": result.baseline_date,
+            "summary": result.summary,
+            "governance": _gov_summary(governance),
+            "fixed": result.fixed,
+            "still_open": result.still_open,
+            "new": result.new,
+            "out_of_scope_hosts": result.out_of_scope_hosts,
+            "findings": [_finding_to_dict(f) for f in scored],
+        }
+        _history.record_scan(scored, scan_file=Path(args.csv))
+        print(json.dumps(payload, indent=2))
+        return 0
+
     print(render_verify(result, sla_statuses=sla_statuses, governance=governance,
                         use_colour=not getattr(args, "no_colour", False)))
     _history.record_scan(scored, scan_file=Path(args.csv))
