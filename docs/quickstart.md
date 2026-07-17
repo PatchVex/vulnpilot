@@ -52,6 +52,10 @@ See [evidence-packs.md](evidence-packs.md) for what each pack contains.
 
 ## 5. Verify remediation (next scan cycle)
 
+`verify` diffs against your last recorded `analyze` run. You must run
+`vulnpilot analyze` at least once before `vulnpilot verify` will have a
+baseline to compare against.
+
 After your team remediates findings and you have a new scan, run:
 
 ```bash
@@ -67,7 +71,8 @@ VulnPilot diffs against your last recorded scan and shows:
 Findings on hosts that disappeared from the new scan are never counted as fixed.
 
 SLA thresholds default to Critical 7d / High 30d / Medium 90d / Low 180d and are
-configurable at `~/.patchvex/sla.yaml`.
+configurable at `~/.patchvex/sla.yaml`. To use a different policy file for a
+specific client or engagement, pass `--sla-config path/to/client_sla.yaml`.
 
 ## 6. Track exceptions (governance workflow)
 
@@ -109,6 +114,40 @@ The output pack contains:
 - Control mapping statement and sign-off block
 
 Replace `soc2` with `iso27001` for an ISO 27001 Annex A 8.8 pack.
+
+## 8. JSON output and CI/CD gating
+
+All terminal rendering is suppressed when `--json` is passed — output is pure
+JSON on stdout, suitable for piping to `jq` or consuming in scripts:
+
+```bash
+# Machine-readable analyze output
+vulnpilot analyze scan.csv --json | jq '.findings[] | select(.kev_match == true)'
+
+# Machine-readable verify output
+vulnpilot verify new_scan.csv --json | jq '.governance'
+```
+
+Use `--fail-on-breach` to make `verify` a hard pipeline gate:
+
+```bash
+vulnpilot verify new_scan.csv --fail-on-breach
+# Exit 0 = clean (no unexcused SLA breaches)
+# Exit 1 = tool error
+# Exit 2 = audit findings exist (breach with no valid exception)
+```
+
+The flags compose — a full CI step looks like:
+
+```bash
+vulnpilot verify new_scan.csv \
+  --sla-config clients/acme_sla.yaml \
+  --exceptions clients/acme_exceptions.csv \
+  --fail-on-breach \
+  --json | tee vulnpilot-verify.json
+```
+
+---
 
 ## Try it without a Nessus scan
 

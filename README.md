@@ -246,14 +246,14 @@ vulnpilot analyze scan.csv --evidence soc2
 vulnpilot analyze scan.csv --evidence iso27001
 
 # Verify remediation against your previous scan
-# — now includes SLA compliance block showing within / approaching / breached counts
+# Requires at least one prior 'vulnpilot analyze' run to seed history
 vulnpilot verify new_scan.csv
 
-# Verify with exception register — NEW in v0.5.0
+# Verify with exception register
 # Classifies SLA breaches as approved, expired, or unexcused (audit finding)
 vulnpilot verify new_scan.csv --exceptions exceptions.csv
 
-# Verify + evidence pack with full governance section — NEW in v0.5.0
+# Verify + evidence pack with full governance section
 vulnpilot verify new_scan.csv --exceptions exceptions.csv --evidence soc2
 
 # Posture trend across all recorded scans
@@ -273,6 +273,44 @@ vulnpilot analyze scan.csv --kev ./kev.json --epss ./epss.csv.gz
 
 # Disable colour output (for CI pipelines)
 vulnpilot --no-colour analyze scan.csv
+
+# Output findings as JSON (suppresses terminal output)
+vulnpilot analyze scan.csv --json
+vulnpilot verify new_scan.csv --json
+
+# Use a per-client SLA policy instead of the default ~/.patchvex/sla.yaml
+vulnpilot verify new_scan.csv --sla-config clients/acme_sla.yaml
+
+# Exit 2 if audit findings exist — use as a CI pipeline gate
+# Exit 0 = clean, 1 = tool error, 2 = breach found
+vulnpilot verify new_scan.csv --fail-on-breach
+```
+
+---
+
+## CI/CD integration
+
+Use `--json` and `--fail-on-breach` to wire VulnPilot into a pipeline.
+
+`verify` requires at least one prior `vulnpilot analyze` run to have seeded the history database.
+
+```bash
+# Step 1 — analyze the new scan; emit JSON for downstream consumers
+vulnpilot analyze new_scan.csv --json | tee vulnpilot-analyze.json
+
+# Step 2 — verify remediation; emit JSON and fail the pipeline on audit findings
+# Exit 0 = clean, 1 = tool error, 2 = breach found (SLA breach with no valid exception)
+vulnpilot verify new_scan.csv --json --fail-on-breach | tee vulnpilot-verify.json
+```
+
+Per-client SLA policies work with both flags:
+
+```bash
+vulnpilot verify new_scan.csv \
+  --sla-config clients/acme_sla.yaml \
+  --exceptions clients/acme_exceptions.csv \
+  --fail-on-breach \
+  --json
 ```
 
 ---
@@ -392,10 +430,14 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] Exception register integration — `verify --exceptions exceptions.csv`
 - [x] Governance summary section in all evidence packs (framework-agnostic)
 
+**v0.6.0 — Released ✅**
+- [x] `--json` output on `analyze` and `verify` — machine-readable JSON, pipeable to `jq`
+- [x] `--sla-config FILE` — per-invocation SLA policy override for per-client workflows
+- [x] SLA breach as CI exit code gate — `verify --fail-on-breach` exits 2 when audit findings exist
+
 **Later**
 - [ ] DPDP and HIPAA evidence packs
 - [ ] Qualys CSV support
-- [ ] SLA breach as CI exit code gate
 - [ ] Weekly digest
 - [ ] Jira / Slack integration
 
