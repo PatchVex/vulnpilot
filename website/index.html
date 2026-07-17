@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08090a" />
   <meta name="description" content="VulnPilot by PatchVex — Local-first vulnerability governance for security teams. SLA tracking, exception management, SOC 2 and ISO 27001 audit evidence — your data never leaves your machine." />
   <meta name="keywords" content="nessus vulnerability prioritization, CISA KEV, EPSS, vulnerability management, devsecops, security operations, vulnerability triage, CVE prioritization, soc2, iso27001, audit evidence, sla tracking, governance, vulnerability governance" />
   <link rel="icon" href="favicon.ico">
@@ -39,6 +40,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 
 <nav id="site-nav">
   <div class="nav-brand">Patch<span>Vex</span></div>
@@ -78,6 +80,7 @@
   <a href="#install" class="btn btn-primary nav-overlay-cta">Install VulnPilot</a>
 </div>
 
+<main id="main-content">
 <div class="hero">
   <div class="hero-eyebrow">
     <span class="hero-eyebrow-dot" aria-hidden="true"></span>
@@ -250,6 +253,84 @@
   </div>
 </section>
 
+<!-- SCORING CALCULATOR -->
+<section id="scoring" class="calc-section">
+  <div class="section-header">
+    <h2>See the <em>score</em> for yourself</h2>
+    <p class="section-sub">Adjust the sliders to match a real finding. The formula is <code>KEV(40) + EPSS(35) + CVSS(15) + Severity(10)</code>, with a hard floor of 75 for any KEV-confirmed finding.</p>
+  </div>
+
+  <div class="calc-wrap">
+    <!-- Controls -->
+    <div class="calc-controls">
+
+      <div class="calc-field">
+        <div class="calc-field-header">
+          <label class="calc-label" for="calc-kev">KEV match</label>
+          <span class="calc-weight">40 pts if confirmed</span>
+        </div>
+        <div class="calc-toggle-row">
+          <button class="calc-toggle" id="calc-kev" role="switch" aria-checked="false" data-off="Not in CISA KEV" data-on="Confirmed exploited">
+            <span class="calc-toggle-knob"></span>
+          </button>
+          <span class="calc-toggle-label" id="calc-kev-label">Not in CISA KEV</span>
+        </div>
+      </div>
+
+      <div class="calc-field">
+        <div class="calc-field-header">
+          <label class="calc-label" for="calc-epss">EPSS score</label>
+          <span class="calc-weight">× 35</span>
+        </div>
+        <div class="calc-slider-row">
+          <input type="range" id="calc-epss" min="0" max="1" step="0.01" value="0.05" class="calc-slider">
+          <span class="calc-slider-val" id="calc-epss-val">0.05</span>
+        </div>
+        <div class="calc-slider-labels"><span>0%</span><span>50%</span><span>100%</span></div>
+      </div>
+
+      <div class="calc-field">
+        <div class="calc-field-header">
+          <label class="calc-label" for="calc-cvss">CVSS base score</label>
+          <span class="calc-weight">× 1.5</span>
+        </div>
+        <div class="calc-slider-row">
+          <input type="range" id="calc-cvss" min="0" max="10" step="0.1" value="7.5" class="calc-slider">
+          <span class="calc-slider-val" id="calc-cvss-val">7.5</span>
+        </div>
+        <div class="calc-slider-labels"><span>0</span><span>5</span><span>10</span></div>
+      </div>
+
+      <div class="calc-field">
+        <div class="calc-field-header">
+          <label class="calc-label" for="calc-sev">Severity</label>
+          <span class="calc-weight">× 10</span>
+        </div>
+        <div class="calc-seg" id="calc-sev" role="radiogroup" aria-label="Severity">
+          <button class="calc-seg-btn" data-val="0.0" aria-checked="false">None</button>
+          <button class="calc-seg-btn" data-val="0.1" aria-checked="false">Low</button>
+          <button class="calc-seg-btn active" data-val="0.4" aria-checked="true">Medium</button>
+          <button class="calc-seg-btn" data-val="0.75" aria-checked="false">High</button>
+          <button class="calc-seg-btn" data-val="1.0" aria-checked="false">Critical</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Result -->
+    <div class="calc-result" id="calc-result" aria-live="polite" aria-atomic="true">
+      <div class="calc-score-label">Priority score</div>
+      <div class="calc-score-num" id="calc-score">—</div>
+      <div class="calc-priority-badge" id="calc-badge">—</div>
+      <div class="calc-breakdown" id="calc-breakdown"></div>
+      <div class="calc-kev-floor" id="calc-kev-floor" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        KEV hard floor applied (min 75)
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- HOW IT WORKS -->
 <section id="how-it-works">
   <h2>How it <span class="accent">works</span></h2>
@@ -277,108 +358,346 @@
 </section>
 
 <!-- FEATURES -->
-<section>
-  <h2>What's <span class="accent">included</span></h2>
-  <div class="features">
-    <div class="feature"><div class="feature-icon">🔒</div><div class="feature-title">Local-first</div><div class="feature-desc">All analysis runs on your machine. Scan data never leaves your environment. Ever.</div></div>
-    <div class="feature"><div class="feature-icon">⚡</div><div class="feature-title">CISA KEV enrichment</div><div class="feature-desc">Instantly flags findings confirmed exploited in the wild right now.</div></div>
-    <div class="feature"><div class="feature-icon">📊</div><div class="feature-title">FIRST EPSS scoring</div><div class="feature-desc">Adds exploitation probability so you focus on what's likely to be exploited next.</div></div>
-    <div class="feature"><div class="feature-icon">🎯</div><div class="feature-title">Composite scoring</div><div class="feature-desc">KEV + EPSS + CVSS combined into one actionable priority score per finding.</div></div>
-    <div class="feature"><div class="feature-icon">📋</div><div class="feature-title">Audit evidence packs</div><div class="feature-desc">Generate SOC 2 CC7.1 and ISO 27001 Annex A 8.8 evidence packs in one command.</div></div>
-    <div class="feature"><div class="feature-icon">✅</div><div class="feature-title">Remediation verification</div><div class="feature-desc">Diff new scans against history. Prove what was fixed, what's still open, what's new.</div></div>
-    <div class="feature"><div class="feature-icon">⏱️</div><div class="feature-title">SLA compliance tracking</div><div class="feature-desc">Per-finding SLA status against configurable policy — Critical 7d, High 30d, and more.</div></div>
-    <div class="feature"><div class="feature-icon">📁</div><div class="feature-title">Exception management</div><div class="feature-desc">Exception register with approval tracking. Classifies breaches as approved, expired, or unexcused audit findings.</div></div>
-    <div class="feature"><div class="feature-icon">🖥️</div><div class="feature-title">Top hosts ranking</div><div class="feature-desc">Ranks hosts by aggregate risk so you know which servers need attention first.</div></div>
-    <div class="feature"><div class="feature-icon">🔄</div><div class="feature-title">Daily feed updates</div><div class="feature-desc">KEV and EPSS feeds update automatically. No API keys required.</div></div>
+<section class="features-section">
+  <div class="section-header">
+    <h2>Everything you need to <em>govern</em> vulnerabilities</h2>
+    <p class="section-sub">From scan to audit evidence in one tool. No SaaS, no account, no data leaving your machine.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="feat-title">CISA KEV enrichment</div>
+      <div class="feat-desc">Instantly flags CVEs confirmed exploited in the wild, sourced directly from CISA's authoritative catalog.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+      <div class="feat-title">EPSS probability scoring</div>
+      <div class="feat-desc">Adds FIRST EPSS exploitation probability so you focus on what's actively likely to be exploited — not just what's severe.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></div>
+      <div class="feat-title">Composite priority score</div>
+      <div class="feat-desc">KEV(40) + EPSS(35) + CVSS(15) + Severity(10) gives every finding a single, defensible score. No more CVSS-only guesswork.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 12 11 14 15 10"/></svg></div>
+      <div class="feat-title">Audit evidence packs</div>
+      <div class="feat-desc">One-command Markdown output for SOC 2 CC7.1 and ISO 27001 Annex A 8.8. Hand it directly to your auditor.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+      <div class="feat-title">Remediation verification</div>
+      <div class="feat-desc">Diff new scans against history. Prove which findings were fixed, which are still open, and what's new — host-aware.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <div class="feat-title">SLA compliance tracking</div>
+      <div class="feat-desc">Per-finding SLA status against configurable thresholds — Critical 7d, High 30d, Medium 90d. Override per client.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+      <div class="feat-title">Exception management</div>
+      <div class="feat-desc">Exception register with ticket refs, approver, and expiry. Classifies breaches as approved, expired, or unexcused audit findings.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg></div>
+      <div class="feat-title">CI/CD pipeline gate</div>
+      <div class="feat-desc"><code>--fail-on-breach</code> exits 2 on unexcused SLA breach. JSON output pipes to <code>jq</code>. Drop-in for GitHub Actions and GitLab CI.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <div class="feat-title">Top hosts ranking</div>
+      <div class="feat-desc">Ranks hosts by aggregate risk score so you know which servers to prioritize before even reviewing individual CVEs.</div>
+    </div>
+  </div>
+  <div class="powered-row">
+    Powered by public threat intelligence from
+    <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a>
+    and
+    <a href="https://www.first.org/epss/" target="_blank" rel="noopener">FIRST EPSS</a>
+    — no API keys, no account required.
   </div>
 </section>
 
-<!-- POWERED BY -->
-<div class="powered-by">
-  <p>Powered by public threat intelligence from</p>
-  <div class="powered-logos">
-    <div class="powered-logo"><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank">CISA KEV</a></div>
-    <div class="powered-logo"><a href="https://www.first.org/epss/" target="_blank">FIRST EPSS</a></div>
-    <div class="powered-logo"><a href="https://www.tenable.com/products/nessus" target="_blank">Nessus CSV</a></div>
+<!-- EVIDENCE PREVIEW -->
+<section class="evidence-section">
+  <div class="section-header">
+    <h2>Audit evidence, <em>generated</em></h2>
+    <p class="section-sub">Run one command. Get a Markdown document your auditor can read — scan metadata, prioritized findings, SLA compliance, control mapping, and sign-off block included.</p>
   </div>
-</div>
+  <div class="evidence-wrap">
+    <div class="evidence-cmd-row">
+      <span class="evidence-cmd-prompt">$</span>
+      <span class="evidence-cmd-text">vulnpilot analyze scan.csv --evidence soc2 --evidence-out evidence.md</span>
+    </div>
+    <div class="evidence-doc">
+      <div class="evidence-doc-bar">
+        <div class="evidence-doc-dot"></div><div class="evidence-doc-dot"></div><div class="evidence-doc-dot"></div>
+        <span class="evidence-doc-title">evidence.md — SOC 2 CC7.1 Evidence Pack</span>
+      </div>
+      <div class="evidence-doc-body">
+        <div class="ev-h1">Vulnerability Management Evidence Pack</div>
+        <div class="ev-meta-row">
+          <span class="ev-meta-item"><span class="ev-meta-key">Control</span> SOC 2 CC7.1</span>
+          <span class="ev-meta-item"><span class="ev-meta-key">Generated</span> 2026-07-18</span>
+          <span class="ev-meta-item"><span class="ev-meta-key">Tool</span> VulnPilot v0.6.0</span>
+        </div>
+        <div class="ev-divider"></div>
+        <div class="ev-section-title">§ 1 — Scan metadata</div>
+        <div class="ev-row"><span class="ev-k">Scanner</span><span class="ev-v">Nessus Professional</span></div>
+        <div class="ev-row"><span class="ev-k">Scan date</span><span class="ev-v">2026-07-18</span></div>
+        <div class="ev-row"><span class="ev-k">Hosts in scope</span><span class="ev-v">47</span></div>
+        <div class="ev-row"><span class="ev-k">Total findings</span><span class="ev-v">5,482</span></div>
+        <div class="ev-divider"></div>
+        <div class="ev-section-title">§ 2 — Prioritized findings (top 5)</div>
+        <div class="ev-finding ev-critical"><span class="ev-score">100.0</span><span class="ev-cve">CVE-2021-44228</span><span class="ev-name">Log4Shell ★KEV</span></div>
+        <div class="ev-finding ev-critical"><span class="ev-score">100.0</span><span class="ev-cve">CVE-2023-34362</span><span class="ev-name">MOVEit SQLi ★KEV</span></div>
+        <div class="ev-finding ev-critical"><span class="ev-score">99.8</span><span class="ev-cve">CVE-2020-1472</span><span class="ev-name">Zerologon ★KEV</span></div>
+        <div class="ev-finding ev-critical"><span class="ev-score">99.7</span><span class="ev-cve">CVE-2021-26084</span><span class="ev-name">Confluence RCE ★KEV</span></div>
+        <div class="ev-finding ev-high"><span class="ev-score">72.1</span><span class="ev-cve">CVE-2022-47966</span><span class="ev-name">ManageEngine RCE</span></div>
+        <div class="ev-divider"></div>
+        <div class="ev-section-title">§ 3 — SLA compliance</div>
+        <div class="ev-sla-grid">
+          <div class="ev-sla-item ev-sla-ok"><div class="ev-sla-num">127</div><div class="ev-sla-label">Within SLA</div></div>
+          <div class="ev-sla-item ev-sla-warn"><div class="ev-sla-num">11</div><div class="ev-sla-label">Approaching</div></div>
+          <div class="ev-sla-item ev-sla-breach"><div class="ev-sla-num">4</div><div class="ev-sla-label">Breached</div></div>
+        </div>
+        <div class="ev-divider"></div>
+        <div class="ev-section-title">§ 4 — Control mapping</div>
+        <div class="ev-control-row">SOC 2 CC7.1 requires the entity to identify, classify, and remediate vulnerabilities. This evidence pack demonstrates compliance with automated KEV and EPSS-enriched prioritization, documented SLA policy, and verified remediation records.</div>
+        <div class="ev-divider"></div>
+        <div class="ev-section-title">§ 5 — Sign-off</div>
+        <div class="ev-signoff-grid">
+          <div class="ev-signoff-item"><div class="ev-signoff-line"></div><div class="ev-signoff-label">Security Lead</div></div>
+          <div class="ev-signoff-item"><div class="ev-signoff-line"></div><div class="ev-signoff-label">Date</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-<!-- SCORING -->
-<section>
-  <h2>Scoring <span class="accent">model</span></h2>
-  <p>The composite score is intentionally opinionated and fully transparent. Known exploited vulnerabilities receive the greatest weight because active exploitation is a stronger predictor of remediation priority than severity alone.</p>
-  <table class="score-table">
-    <thead><tr><th>Signal</th><th>Weight</th><th>Source</th></tr></thead>
-    <tbody>
-      <tr><td>CISA KEV match</td><td><span class="w-high">40%</span></td><td>Known exploited in the wild</td></tr>
-      <tr><td>FIRST EPSS score</td><td><span class="w-med">35%</span></td><td>Exploitation probability</td></tr>
-      <tr><td>CVSS base score</td><td><span class="w-low">15%</span></td><td>Severity context</td></tr>
-      <tr><td>Scanner risk rating</td><td><span class="w-low">10%</span></td><td>Nessus severity label</td></tr>
-    </tbody>
-  </table>
-  <p style="margin-top:1rem;font-size:0.83rem;">VulnPilot provides prioritization guidance to assist remediation workflows. Final decisions should always consider asset criticality, business context, and organizational risk tolerance.</p>
+<!-- CI/CD -->
+<section class="cicd-section">
+  <div class="section-header">
+    <h2>Drop it into your <em>pipeline</em></h2>
+    <p class="section-sub">One step in CI gates every deploy against your SLA policy. Exit 0 = clean. Exit 2 = unexcused breach — your pipeline fails, your auditor sees proof.</p>
+  </div>
+  <div class="cicd-wrap">
+    <div class="cicd-block">
+      <div class="cicd-block-bar">
+        <span class="cicd-block-title">GitHub Actions</span>
+        <span class="cicd-block-lang">YAML</span>
+      </div>
+      <pre class="cicd-code"><span class="cc-key">- name:</span> <span class="cc-str">Vulnerability governance gate</span>
+  <span class="cc-key">run:</span> <span class="cc-pipe">|</span>
+    vulnpilot verify scan.csv \
+      <span class="cc-flag">--sla-config</span> clients/acme_sla.yaml \
+      <span class="cc-flag">--exceptions</span> clients/acme_exceptions.csv \
+      <span class="cc-flag">--fail-on-breach</span> \
+      <span class="cc-flag">--json</span> | tee vulnpilot-verify.json</pre>
+    </div>
+    <div class="cicd-exits">
+      <div class="cicd-exit">
+        <div class="cicd-exit-code cicd-exit-ok">0</div>
+        <div>
+          <div class="cicd-exit-title">Clean</div>
+          <div class="cicd-exit-desc">No unexcused SLA breaches. Deploy continues.</div>
+        </div>
+      </div>
+      <div class="cicd-exit">
+        <div class="cicd-exit-code cicd-exit-err">1</div>
+        <div>
+          <div class="cicd-exit-title">Tool error</div>
+          <div class="cicd-exit-desc">Invalid config, missing file, or parse failure.</div>
+        </div>
+      </div>
+      <div class="cicd-exit">
+        <div class="cicd-exit-code cicd-exit-breach">2</div>
+        <div>
+          <div class="cicd-exit-title">Audit finding</div>
+          <div class="cicd-exit-desc">SLA breach with no valid exception on file. Pipeline fails.</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ROADMAP -->
-<section id="roadmap">
-  <h2>Road<span class="accent">map</span></h2>
-  <p>Development priorities are driven by community feedback and real-world usage.</p>
-  <div class="roadmap-grid">
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.1.0 ✓</div><div class="roadmap-feature">Community Preview</div><div class="roadmap-status">CLI, KEV, EPSS, PyPI</div></div>
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.2.0 ✓</div><div class="roadmap-feature">HTML Reports</div><div class="roadmap-status">Shareable export</div></div>
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.3.0 ✓</div><div class="roadmap-feature">Audit Evidence Pack</div><div class="roadmap-status">SOC 2 CC7.1 — one command</div></div>
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.4.0 ✓</div><div class="roadmap-feature">Remediation Verification</div><div class="roadmap-status">Prove findings were fixed</div></div>
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.5.0 ✓</div><div class="roadmap-feature">Vulnerability Governance</div><div class="roadmap-status">ISO 27001, SLA tracking, exceptions, governance evidence</div></div>
-    <div class="roadmap-item done"><div class="roadmap-ver">v0.6.0 ✓</div><div class="roadmap-feature">CI/CD Integration</div><div class="roadmap-status">--json, --sla-config, --fail-on-breach pipeline gate</div></div>
-    <div class="roadmap-item"><div class="roadmap-ver">Later</div><div class="roadmap-feature">More Frameworks</div><div class="roadmap-status">DPDP, HIPAA, Qualys support</div></div>
+<section id="roadmap" class="roadmap-section">
+  <div class="section-header">
+    <h2>What's <em>shipped</em>, what's next</h2>
+    <p class="section-sub">Development priorities are driven by community feedback and real-world usage.</p>
+  </div>
+  <div class="roadmap-track">
+    <div class="roadmap-done-group">
+      <div class="rm-item rm-done">
+        <div class="rm-ver">v0.1.0</div>
+        <div class="rm-body">
+          <div class="rm-title">Community preview</div>
+          <div class="rm-desc">CLI, CISA KEV enrichment, EPSS scoring, PyPI release</div>
+        </div>
+      </div>
+      <div class="rm-item rm-done">
+        <div class="rm-ver">v0.2.0</div>
+        <div class="rm-body">
+          <div class="rm-title">HTML reports</div>
+          <div class="rm-desc">Shareable export for stakeholders</div>
+        </div>
+      </div>
+      <div class="rm-item rm-done">
+        <div class="rm-ver">v0.3.0</div>
+        <div class="rm-body">
+          <div class="rm-title">Audit evidence packs</div>
+          <div class="rm-desc">SOC 2 CC7.1 evidence in one command</div>
+        </div>
+      </div>
+      <div class="rm-item rm-done">
+        <div class="rm-ver">v0.4.0</div>
+        <div class="rm-body">
+          <div class="rm-title">Remediation verification</div>
+          <div class="rm-desc">Prove findings were fixed across scan cycles</div>
+        </div>
+      </div>
+      <div class="rm-item rm-done">
+        <div class="rm-ver">v0.5.0</div>
+        <div class="rm-body">
+          <div class="rm-title">Vulnerability governance</div>
+          <div class="rm-desc">ISO 27001, SLA tracking, exception register, governance evidence</div>
+        </div>
+      </div>
+      <div class="rm-item rm-done rm-current">
+        <div class="rm-ver">v0.6.0</div>
+        <div class="rm-body">
+          <div class="rm-title">CI/CD integration <span class="rm-badge-current">Latest</span></div>
+          <div class="rm-desc"><code>--json</code>, <code>--sla-config</code>, <code>--fail-on-breach</code> pipeline gate</div>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-future-group">
+      <div class="rm-item rm-future">
+        <div class="rm-ver rm-ver-future">Later</div>
+        <div class="rm-body">
+          <div class="rm-title">More frameworks &amp; scanners</div>
+          <div class="rm-desc">DPDP, HIPAA evidence packs · Qualys and Rapid7 CSV support</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- INSTALL -->
-<section id="install">
-  <h2>Get <span class="accent">started</span></h2>
-  <p>Install with pip. Requires Python 3.10, 3.11, or 3.12. Three steps.</p>
-  <div class="install-steps">
-    <div class="install-step"><div class="step-num">Step 1 — Install</div><div class="step-cmd">pip install vulnpilot</div><div class="step-desc">Install from PyPI. Zero dependencies.</div></div>
-    <div class="install-step"><div class="step-num">Step 2 — Update feeds</div><div class="step-cmd">vulnpilot update-feeds</div><div class="step-desc">Download latest KEV and EPSS data.</div></div>
-    <div class="install-step"><div class="step-num">Step 3 — Analyze</div><div class="step-cmd">vulnpilot analyze scan.csv</div><div class="step-desc">See prioritized findings instantly.</div></div>
+<section id="install" class="install-section">
+  <div class="section-header">
+    <h2>Up and running in <em>three steps</em></h2>
+    <p class="section-sub">Requires Python 3.10, 3.11, or 3.12. No API keys. No account.</p>
   </div>
-  <div class="cta-group" style="justify-content:flex-start;margin-top:1.5rem;">
+  <div class="install-steps-new">
+    <div class="install-step-new">
+      <div class="step-num-new">1</div>
+      <div class="step-body">
+        <div class="step-title-new">Install</div>
+        <div class="step-cmd-new">pip install vulnpilot</div>
+        <div class="step-desc-new">Install from PyPI. No external dependencies beyond Python stdlib.</div>
+      </div>
+    </div>
+    <div class="install-connector"></div>
+    <div class="install-step-new">
+      <div class="step-num-new">2</div>
+      <div class="step-body">
+        <div class="step-title-new">Download threat feeds</div>
+        <div class="step-cmd-new">vulnpilot update-feeds</div>
+        <div class="step-desc-new">Fetches CISA KEV and FIRST EPSS to <code>~/.vulnpilot/feeds/</code>. Re-run whenever you want fresh data.</div>
+      </div>
+    </div>
+    <div class="install-connector"></div>
+    <div class="install-step-new">
+      <div class="step-num-new">3</div>
+      <div class="step-body">
+        <div class="step-title-new">Analyze your scan</div>
+        <div class="step-cmd-new">vulnpilot analyze scan.csv</div>
+        <div class="step-desc-new">Where <code>scan.csv</code> is a standard Nessus CSV export. Prioritized findings in seconds.</div>
+      </div>
+    </div>
+  </div>
+  <div class="install-cta">
     <a href="https://pypi.org/project/vulnpilot/" class="btn btn-primary">Install on PyPI</a>
+    <a href="https://github.com/PatchVex/vulnpilot/blob/main/docs/quickstart.md" class="btn btn-secondary">Read quickstart</a>
     <a href="https://github.com/PatchVex/vulnpilot" class="btn btn-secondary">View on GitHub</a>
   </div>
 </section>
 
 <!-- FAQ -->
-<section id="faq">
-  <h2>Frequently asked <span class="accent">questions</span></h2>
-  <div class="faq">
-    <div class="faq-item"><div class="faq-q">Does VulnPilot upload my scan data?</div><div class="faq-a">No. All analysis runs locally on your machine. Only public threat intelligence feeds are downloaded. Your vulnerability data never leaves your environment.</div></div>
-    <div class="faq-item"><div class="faq-q">Does it work offline or air-gapped?</div><div class="faq-a">Yes, after the initial feed download. Run <code>vulnpilot update-feeds</code> once to cache locally. After that, analysis works completely offline.</div></div>
-    <div class="faq-item"><div class="faq-q">Is it open source?</div><div class="faq-a">Yes. VulnPilot is MIT licensed. Inspect every line of code, fork it, and contribute on GitHub.</div></div>
-    <div class="faq-item"><div class="faq-q">Which scanners are supported?</div><div class="faq-a">Currently Nessus CSV exports. Qualys, Rapid7, and OpenVAS support is planned.</div></div>
-    <div class="faq-item"><div class="faq-q">How often are the threat feeds updated?</div><div class="faq-a">CISA KEV and FIRST EPSS feeds update daily via GitHub Actions. Run <code>vulnpilot update-feeds</code> to pull the latest data anytime.</div></div>
-    <div class="faq-item"><div class="faq-q">Can I use it commercially?</div><div class="faq-a">Yes. The MIT license permits commercial use without restriction.</div></div>
-    <div class="faq-item"><div class="faq-q">Which audit frameworks does VulnPilot support?</div><div class="faq-a">SOC 2 (CC7.1) and ISO/IEC 27001:2022 (Annex A 8.8) evidence packs are available today. DPDP and HIPAA packs are planned. Evidence is generated in one command: <code>vulnpilot analyze scan.csv --evidence soc2</code></div></div>
-    <div class="faq-item"><div class="faq-q">Is the evidence enough for a real audit?</div><div class="faq-a">VulnPilot generates the technical evidence: scan metadata, prioritization methodology, findings, SLA compliance, and exception register. You still need to complete the management sign-off table and attach remediation ownership records (Jira, ServiceNow, etc.). The documentation covers exactly what to do with the generated pack.</div></div>
-    <div class="faq-item"><div class="faq-q">Is it really free?</div><div class="faq-a">Yes. VulnPilot is MIT-licensed open source software. All features — including SLA tracking, exception management, and audit evidence packs — are free. No account, no API key, no subscription.</div></div>
+<section id="faq" class="faq-section">
+  <div class="section-header">
+    <h2>Frequently asked <em>questions</em></h2>
+  </div>
+  <div class="faq-list" role="list">
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Does VulnPilot upload my scan data?</button>
+      <div class="faq-a-new" hidden>No. All analysis runs locally on your machine. Only public threat intelligence feeds are downloaded. Your vulnerability data never leaves your environment.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Does it work offline or air-gapped?</button>
+      <div class="faq-a-new" hidden>Yes, after the initial feed download. Run <code>vulnpilot update-feeds</code> once to cache data locally. After that, analysis works completely offline — no internet connection required.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Which scanners are supported?</button>
+      <div class="faq-a-new" hidden>Currently Nessus CSV exports (Scans → Export → CSV). Qualys, Rapid7, and OpenVAS support is planned.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Which audit frameworks are supported?</button>
+      <div class="faq-a-new" hidden>SOC 2 (CC7.1) and ISO/IEC 27001:2022 (Annex A 8.8) evidence packs ship today. DPDP and HIPAA packs are planned. Generate with: <code>vulnpilot analyze scan.csv --evidence soc2</code></div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Is the evidence enough for a real audit?</button>
+      <div class="faq-a-new" hidden>VulnPilot generates the technical evidence: scan metadata, prioritization methodology, findings, SLA compliance, and exception register. You complete the management sign-off table and attach remediation ownership records (Jira, ServiceNow). The quickstart guide explains exactly what to hand to your auditor.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">How often are the threat feeds updated?</button>
+      <div class="faq-a-new" hidden>CISA KEV and FIRST EPSS publish new data daily. Run <code>vulnpilot update-feeds</code> anytime to pull the latest. No API key or account required.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Is it really free? No paid tier?</button>
+      <div class="faq-a-new" hidden>Yes, completely free. VulnPilot is MIT-licensed open source. All features — SLA tracking, exception management, audit evidence, CI/CD gating — are included. No account, no subscription, no usage limits.</div>
+    </div>
+    <div class="faq-item-new" role="listitem">
+      <button class="faq-q-new" aria-expanded="false">Can I use it commercially?</button>
+      <div class="faq-a-new" hidden>Yes. The MIT license permits commercial use, modification, and redistribution without restriction.</div>
+    </div>
   </div>
 </section>
 
-<footer>
-  <div class="footer-links">
-    <a href="https://github.com/PatchVex/vulnpilot">GitHub</a>
-    <a href="https://pypi.org/project/vulnpilot/">PyPI</a>
-    <a href="https://github.com/PatchVex/vulnpilot/blob/main/README.md">Documentation</a>
-    <a href="https://github.com/PatchVex/vulnpilot/blob/main/SECURITY.md">Security Policy</a>
-    <a href="mailto:hello@patchvex.com">hello@patchvex.com</a>
-    <a href="mailto:security@patchvex.com">security@patchvex.com</a>
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="footer-logo">Patch<span>Vex</span></div>
+      <div class="footer-tagline">Local-first vulnerability governance for security teams.</div>
+      <div class="footer-copy">MIT License · v0.6.0 · No telemetry</div>
+    </div>
+    <div class="footer-links-col">
+      <div class="footer-col-label">Project</div>
+      <a href="https://github.com/PatchVex/vulnpilot">GitHub</a>
+      <a href="https://pypi.org/project/vulnpilot/">PyPI</a>
+      <a href="https://github.com/PatchVex/vulnpilot/blob/main/SECURITY.md">Security policy</a>
+    </div>
+    <div class="footer-links-col">
+      <div class="footer-col-label">Docs</div>
+      <a href="https://github.com/PatchVex/vulnpilot/blob/main/docs/quickstart.md">Quick start</a>
+      <a href="https://github.com/PatchVex/vulnpilot/blob/main/docs/scoring.md">Scoring model</a>
+      <a href="https://github.com/PatchVex/vulnpilot/blob/main/docs/evidence-packs.md">Evidence packs</a>
+      <a href="https://github.com/PatchVex/vulnpilot/blob/main/docs/faq.md">FAQ</a>
+    </div>
+    <div class="footer-links-col">
+      <div class="footer-col-label">Contact</div>
+      <a href="mailto:hello@patchvex.com">hello@patchvex.com</a>
+      <a href="mailto:security@patchvex.com">security@patchvex.com</a>
+    </div>
   </div>
-  <p>VulnPilot is open source software released under the MIT License.</p>
-  <p style="margin-top:0.5rem;">Built by <a href="https://patchvex.com">PatchVex</a> — Local-first vulnerability governance for security teams.</p>
-  <div class="footer-meta">v0.6.0 · 77 tests passing · Daily threat feed updates · No telemetry</div>
 </footer>
 
-<script src="main.js" defer></script>
+<script src="main.js?v=8" defer></script>
 </body>
 </html>
