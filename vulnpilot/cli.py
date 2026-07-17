@@ -184,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Output verify result as JSON (suppresses terminal output)")
     verify_p.add_argument("--sla-config", metavar="FILE",
                           help="Path to SLA policy YAML (default: ~/.patchvex/sla.yaml)")
+    verify_p.add_argument("--fail-on-breach", action="store_true",
+                          help="Exit 2 if audit findings exist (expired/missing exceptions). "
+                               "Exit 0 = clean. Exit 1 = tool error. Exit 2 = breach found.")
 
     sub.add_parser("trend", help="Show findings trend across recorded scan history")
     feeds.add_argument("--cache", help="Cache directory for feeds")
@@ -224,14 +227,18 @@ def cmd_verify(args) -> int:
     exceptions_map = load_exceptions(Path(exceptions_path)) if exceptions_path else {}
     governance = classify_all(sla_statuses, exceptions_map)
 
+    from vulnpilot.exceptions import governance_summary as _gov_summary
+    gov_summary = _gov_summary(governance)
+    audit_findings = gov_summary.get("audit_findings", 0)
+    fail_on_breach = getattr(args, "fail_on_breach", False)
+
     if getattr(args, "json", False):
-        from vulnpilot.exceptions import governance_summary as _gov_summary
         payload = {
             "command": "verify",
             "scan_file": args.csv,
             "baseline_date": result.baseline_date,
             "summary": result.summary,
-            "governance": _gov_summary(governance),
+            "governance": gov_summary,
             "fixed": result.fixed,
             "still_open": result.still_open,
             "new": result.new,
@@ -240,7 +247,7 @@ def cmd_verify(args) -> int:
         }
         _history.record_scan(scored, scan_file=Path(args.csv))
         print(json.dumps(payload, indent=2))
-        return 0
+        return 2 if (fail_on_breach and audit_findings) else 0
 
     print(render_verify(result, sla_statuses=sla_statuses, governance=governance,
                         use_colour=not getattr(args, "no_colour", False)))
@@ -248,18 +255,17 @@ def cmd_verify(args) -> int:
 
     if getattr(args, "evidence", None):
         from vulnpilot.evidence import generate_evidence_pack
-        from vulnpilot.exceptions import governance_summary as _gov_summary
         _out = generate_evidence_pack(
             findings=scored,
             framework=args.evidence,
             scan_file=Path(args.csv),
             output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
             verify_result=result,
-            governance_summary=_gov_summary(governance),
+            governance_summary=gov_summary,
         )
         print(f"  Evidence pack (with verification): {_out}")
 
-    return 0
+    return 2 if (fail_on_breach and audit_findings) else 0
 
 
 def cmd_trend(args) -> int:
