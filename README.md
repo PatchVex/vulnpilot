@@ -1,15 +1,15 @@
 # VulnPilot
 
-**Your scanner finds them. VulnPilot proves you managed them.**
+**Open-source, local-first vulnerability operations for security teams.**
 
-Prioritize vulnerabilities using real-world exploit intelligence. Track SLA compliance. Generate audit evidence. Manage exceptions. Runs locally — your data never leaves your machine.
+VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST EPSS, and produces a deterministic priority-ranked list of what to fix first. It tracks SLA compliance, manages exceptions, generates audit evidence for SOC 2 and ISO 27001, and verifies remediation — all on your local machine. Your scan data never leaves your network.
 
 [![CI](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/vulnpilot.svg)](https://pypistats.org/packages/vulnpilot)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
-[![Status: Community Preview](https://img.shields.io/badge/status-community%20preview-orange.svg)]()
+[![Status: v1.0 Community](https://img.shields.io/badge/status-v1.0%20community-brightgreen.svg)]()
 
 ---
 
@@ -21,9 +21,27 @@ vulnpilot update-feeds
 vulnpilot analyze scan.csv
 ```
 
-VulnPilot downloads the latest public threat intelligence, analyzes your Nessus scan locally, and shows what should be remediated first. No API keys required.
+VulnPilot downloads the latest public threat intelligence, analyzes your Nessus scan locally, and ranks findings by actual exploitation risk. No API keys. No cloud upload. No account required.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
+---
+
+## What's in Community v1.0.0
+
+The first stable release of VulnPilot. Everything below ships in the base `pip install`:
+
+- **Composite risk scoring** — KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)
+- **Remediation verification** — `vulnpilot verify` diffs a new scan against history; classifies findings as fixed, still open, or new
+- **SLA compliance tracking** — per-severity deadlines with configurable policy; breach detection with approved/expired/unexcused classification
+- **Exception register** — CSV-based approval tracking; exceptions surface as audit findings when expired or missing
+- **Audit evidence packs** — one-command Markdown output mapped to SOC 2 CC7.1 and ISO 27001 A.8.8
+- **HTML report** — self-contained, shareable report with executive summary and prioritized findings table
+- **Posture trend** — `vulnpilot trend` shows total findings, KEV count, and critical count across all recorded scans
+- **JSON output** — `--json` on `analyze` and `verify` for pipeline integration and `jq` consumption
+- **CI gate** — `--fail-on-breach` exits 2 when unexcused SLA breaches exist
+- **Scanner abstraction** — pluggable parser interface; Qualys, Rapid7, and OpenVAS parsers can be added without touching core logic
+- **Local scan history** — every run recorded to `~/.vulnpilot/history.db`; never transmitted
+
+**Docs:** [Quick Start](docs/quickstart.md) · [Evidence](docs/evidence.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
 ---
 
@@ -46,7 +64,7 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 </tr>
 </table>
 
-**[View the full sample report →](https://htmlpreview.github.io/?https://github.com/PatchVex/vulnpilot/blob/main/assets/sample-report.html)** — real output generated from [`data/sample/sample_nessus.csv`](data/sample/sample_nessus.csv), not a mockup.
+**[View the full sample report →](https://htmlpreview.github.io/?https://github.com/PatchVex/vulnpilot/blob/main/assets/sample-report.html)** — real output from [`data/sample/sample_nessus.csv`](data/sample/sample_nessus.csv), not a mockup.
 
 ---
 
@@ -70,7 +88,7 @@ VulnPilot answers both, in seconds, using real-world exploit data.
 | Spreadsheets to track SLA compliance | Per-finding SLA tracking against configurable policy |
 | No documented exception process | Exception register with approval tracking and audit flags |
 | Uploading scans to cloud services | Local-first — data never leaves your machine |
-| Enterprise-only platforms | Community Preview — free and open source |
+| Enterprise-only platforms | Open source, MIT licensed — free to use and self-host |
 
 ### CVSS-only prioritization is why triage takes hours
 
@@ -128,7 +146,7 @@ VulnPilot cross-references your findings against three data sources — all proc
 
 ---
 
-## Audit Evidence Packs — v0.3.0+
+## Audit Evidence
 
 Auditors across SOC 2, ISO 27001, HIPAA and DPDP ask for the same thing: proof of a documented, risk-based vulnerability management process. The most common audit gap is showing thousands of findings with no evidence of how they are prioritized, tracked, and resolved.
 
@@ -138,7 +156,7 @@ VulnPilot generates that evidence in one command:
 # SOC 2 CC7.1 evidence pack
 vulnpilot analyze scan.csv --evidence soc2
 
-# ISO 27001 Annex A 8.8 evidence pack — NEW in v0.5.0
+# ISO 27001 Annex A 8.8 evidence pack
 vulnpilot analyze scan.csv --evidence iso27001
 ```
 
@@ -148,7 +166,7 @@ The evidence pack includes:
 - Prioritized findings with KEV flags
 - Framework control mapping statement (SOC 2 CC7.1 or ISO 27001 A.8.8)
 - Management review and sign-off block
-- **SLA compliance and exception register** — when run via `vulnpilot verify` (see below)
+- **SLA compliance and exception register** — when run via `vulnpilot verify`
 
 Output is a clean Markdown file — convert to PDF with your tool of choice and hand it to your auditor.
 
@@ -167,7 +185,7 @@ SLA thresholds are configurable per severity. The defaults are:
 | Medium | 90 days |
 | Low | 180 days |
 
-To customize, create `~/.patchvex/sla.yaml`:
+To customize, create `~/.vulnpilot/sla.yaml`:
 
 ```yaml
 # VulnPilot SLA policy — days to remediate by severity
@@ -177,17 +195,17 @@ medium: 90
 low: 180
 ```
 
-VulnPilot reads this file automatically on every `verify` run. If the file does not exist, the defaults above apply.
+VulnPilot reads this file automatically on every `verify` run. If the file does not exist, the defaults above apply. Use `--sla-config FILE` to pass a per-client policy at invocation time.
 
 ---
 
-## Local Scan History — NEW in v0.3.0
+## Local Scan History
 
 Every analysis run is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` — on your machine only, never transmitted.
 
 Why this matters: SOC 2 Type II audits require evidence that your process operated consistently over a 6–12 month observation period. That history cannot be recreated retroactively. VulnPilot starts building your evidence trail from your very first scan.
 
-Upcoming releases use this history for remediation verification (`vulnpilot verify`) and trend reporting.
+Use `vulnpilot verify` to diff a new scan against history, and `vulnpilot trend` to view your posture over time.
 
 ---
 
@@ -216,8 +234,6 @@ Many organizations prohibit uploading vulnerability scan data to third-party clo
 
 Only public threat intelligence feeds are downloaded. No API keys required. Your scan data never leaves your machine.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
-
 ---
 
 ## Install
@@ -226,7 +242,7 @@ Only public threat intelligence feeds are downloaded. No API keys required. Your
 pip install vulnpilot
 ```
 
-Tested on Python 3.10, 3.11, and 3.12.
+Tested on Python 3.10, 3.11, and 3.12. Zero runtime dependencies — pure stdlib.
 
 ---
 
@@ -242,7 +258,7 @@ vulnpilot analyze scan.csv
 # Generate a SOC 2 audit evidence pack
 vulnpilot analyze scan.csv --evidence soc2
 
-# Generate an ISO 27001 audit evidence pack — NEW in v0.5.0
+# Generate an ISO 27001 audit evidence pack
 vulnpilot analyze scan.csv --evidence iso27001
 
 # Verify remediation against your previous scan
@@ -278,7 +294,7 @@ vulnpilot --no-colour analyze scan.csv
 vulnpilot analyze scan.csv --json
 vulnpilot verify new_scan.csv --json
 
-# Use a per-client SLA policy instead of the default ~/.patchvex/sla.yaml
+# Use a per-client SLA policy instead of the default ~/.vulnpilot/sla.yaml
 vulnpilot verify new_scan.csv --sla-config clients/acme_sla.yaml
 
 # Exit 2 if audit findings exist — use as a CI pipeline gate
@@ -379,8 +395,6 @@ VulnPilot pulls two public datasets:
 
 Feeds are cached at `~/.vulnpilot/feeds/` on your machine. No API keys required.
 
-**Docs:** [Quick Start](docs/quickstart.md) · [Evidence Packs](docs/evidence-packs.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
-
 ```bash
 vulnpilot update-feeds
 ```
@@ -404,7 +418,7 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 
 ## Roadmap
 
-**v0.1.0 — Community Preview ✅**
+**v0.1.0 — Released ✅**
 - [x] Nessus CSV parser
 - [x] CISA KEV enrichment
 - [x] FIRST EPSS enrichment
@@ -435,6 +449,14 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] `--sla-config FILE` — per-invocation SLA policy override for per-client workflows
 - [x] SLA breach as CI exit code gate — `verify --fail-on-breach` exits 2 when audit findings exist
 
+**v1.0.0 — Released ✅**
+- [x] Stable Community release — production/stable classifier, all findings always shown
+- [x] Scanner abstraction layer — pluggable `Scanner` ABC; adding new parsers requires only a new file
+- [x] All product data paths standardized to `~/.vulnpilot/`
+- [x] HTML report cleaned — polished standalone output, no commercial messaging
+- [x] `--evidence` messages routed to `stderr` when `--json` is active — clean JSON stream guaranteed
+- [x] `ARCHITECTURE.md` — public source of truth for module layout, scoring formula, and extension points
+
 **Later**
 - [ ] DPDP and HIPAA evidence packs
 - [ ] Qualys CSV support
@@ -454,20 +476,12 @@ Future development priorities are driven by community feedback and real-world us
 
 ---
 
-## Looking for early users
-
-If you run Nessus or Qualys and are willing to test VulnPilot on a real scan
-(non-production exports welcome), your feedback directly shapes the roadmap.
-Open a [GitHub issue](https://github.com/PatchVex/vulnpilot/issues), start a
-[Discussion](https://github.com/PatchVex/vulnpilot/discussions), or email
-hello@patchvex.com. Ten minutes of your honest reaction is worth more than
-a hundred stars.
-
 ## Contributing
 
 Issues, bug reports, and pull requests are welcome.
 
 - **Bug reports and feature requests:** [github.com/PatchVex/vulnpilot/issues](https://github.com/PatchVex/vulnpilot/issues)
+- **Discussions:** [github.com/PatchVex/vulnpilot/discussions](https://github.com/PatchVex/vulnpilot/discussions)
 - **Security disclosures:** security@patchvex.com
 
 Good first issues are labelled `good first issue` in the issue tracker. Please search existing issues before opening a new one.
