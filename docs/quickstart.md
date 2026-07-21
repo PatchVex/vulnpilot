@@ -48,7 +48,7 @@ vulnpilot analyze scan.csv --evidence iso27001
 ```
 
 Output is a Markdown file — convert to PDF and hand it to your auditor.
-See [evidence-packs.md](evidence-packs.md) for what each pack contains.
+See [evidence.md](evidence.md) for what each pack contains.
 
 ## 5. Verify remediation (next scan cycle)
 
@@ -71,7 +71,7 @@ VulnPilot diffs against your last recorded scan and shows:
 Findings on hosts that disappeared from the new scan are never counted as fixed.
 
 SLA thresholds default to Critical 7d / High 30d / Medium 90d / Low 180d and are
-configurable at `~/.patchvex/sla.yaml`. To use a different policy file for a
+configurable at `~/.vulnpilot/sla.yaml`. To use a different policy file for a
 specific client or engagement, pass `--sla-config path/to/client_sla.yaml`.
 
 ## 6. Track exceptions (governance workflow)

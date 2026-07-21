@@ -30,12 +30,12 @@ restrictions.
 **Which audit frameworks are supported?**
 SOC 2 (CC7.1) and ISO/IEC 27001:2022 (Annex A 8.8) evidence packs, generated
 with `--evidence soc2` or `--evidence iso27001`. DPDP and HIPAA are planned.
-See [evidence-packs.md](evidence-packs.md).
+See [evidence.md](evidence.md).
 
 **How do SLA thresholds work, and can I change them?**
 Every open finding is measured against a per-severity remediation deadline —
 defaults are Critical 7d, High 30d, Medium 90d, Low 180d. Customize at
-`~/.patchvex/sla.yaml`. `vulnpilot verify` shows within / approaching /
+`~/.vulnpilot/sla.yaml`. `vulnpilot verify` shows within / approaching /
 breached counts on every run.
 
 **What is the exception register?**
@@ -43,7 +43,7 @@ A plain CSV recording approved SLA-breach exceptions (ticket ref, approver,
 expiry). Run `vulnpilot verify scan.csv --exceptions exceptions.csv` and
 each breach is classified as approved, expired, or unexcused — the last two
 are flagged as audit findings. Format details in
-[evidence-packs.md](evidence-packs.md); a sample ships at
+[evidence.md](evidence.md); a sample ships at
 `data/sample/sample_exceptions.csv`.
 
 **Can I use this in CI?**

@@ -60,7 +60,7 @@ def test_sample_data_ships():
 
 def test_docs_exist():
     """docs/ files referenced from README must exist."""
-    for f in ("quickstart.md", "evidence-packs.md", "scoring.md", "faq.md"):
+    for f in ("quickstart.md", "evidence.md", "scoring.md", "faq.md"):
         assert (ROOT / "docs" / f).exists(), f"missing docs/{f}"
 
 

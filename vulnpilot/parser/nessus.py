@@ -5,9 +5,10 @@ Parses Nessus CSV exports into normalized Finding objects.
 from __future__ import annotations
 import csv
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+
+from vulnpilot.parser.base import Finding, Scanner
 
 logger = logging.getLogger(__name__)
 
@@ -28,47 +29,8 @@ NESSUS_COLUMNS = {
     "plugin output":         "plugin_output",
 }
 
-RISK_ORDER = {"critical": 4, "high": 3, "medium": 2, "low": 1, "none": 0, "": 0}
 
-
-@dataclass
-class Finding:
-    plugin_id: str
-    cve: str
-    cvss_v3: Optional[float]
-    cvss_v2: Optional[float]
-    risk: str
-    host: str
-    port: str
-    protocol: str
-    name: str
-    synopsis: str
-    description: str
-    solution: str
-    references: str
-    plugin_output: str
-    epss_score: Optional[float] = None
-    epss_percentile: Optional[float] = None
-    kev_match: bool = False
-    priority_score: Optional[float] = None
-    priority_label: Optional[str] = None
-
-    @property
-    def cve_list(self) -> List[str]:
-        if not self.cve:
-            return []
-        return [c.strip().upper() for c in self.cve.split(",") if c.strip().startswith("CVE-")]
-
-    @property
-    def cvss(self) -> float:
-        return self.cvss_v3 or self.cvss_v2 or 0.0
-
-    @property
-    def risk_value(self) -> int:
-        return RISK_ORDER.get(self.risk.lower(), 0)
-
-
-def _safe_float(value: str) -> Optional[float]:
+def _safe_float(value: str):
     try:
         return float(value.strip()) if value.strip() else None
     except ValueError:
@@ -76,6 +38,7 @@ def _safe_float(value: str) -> Optional[float]:
 
 
 def parse_nessus_csv(path: Path) -> List[Finding]:
+    """Parse a Nessus CSV export. Kept for backward compatibility; prefer parse()."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"CSV not found: {path}")
@@ -137,3 +100,20 @@ def parse_nessus_csv(path: Path) -> List[Finding]:
 
     logger.info("Parsed %d findings (%d informational skipped)", len(findings), skipped)
     return findings
+
+
+class NessusScanner(Scanner):
+    """Scanner plugin for Nessus CSV exports."""
+
+    def accepts(self, path: Path) -> bool:
+        if path.suffix.lower() != ".csv":
+            return False
+        try:
+            with open(path, newline="", encoding="utf-8-sig") as fh:
+                sample = fh.read(4096).lower()
+            return "plugin id" in sample and "risk" in sample and "host" in sample
+        except OSError:
+            return False
+
+    def parse(self, path: Path) -> List[Finding]:
+        return parse_nessus_csv(path)

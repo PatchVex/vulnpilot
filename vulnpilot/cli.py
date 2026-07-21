@@ -20,11 +20,8 @@ from vulnpilot.parser import parse_nessus_csv
 from vulnpilot.enrich import enrich, update_feeds
 from vulnpilot.scoring import score_all
 from vulnpilot.reports import (
-    render_summary, render_findings, render_top_hosts,
-    render_free_tier_gate, generate_html_report
+    render_summary, render_findings, render_top_hosts, generate_html_report
 )
-
-FREE_TIER_LIMIT = 20
 
 
 def _finding_to_dict(f) -> dict:
@@ -79,7 +76,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             scan_file=Path(args.csv),
             output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
         )
-        print(f"\n  Evidence pack written: {_out}")
+        _ev_dest = sys.stderr if getattr(args, "json", False) else sys.stdout
+        print(f"\n  Evidence pack written: {_out}", file=_ev_dest)
 
     if getattr(args, "json", False):
         payload = {
@@ -91,16 +89,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
         return 0
 
-    is_paid = args.all or bool(args.license)
-    limit   = len(scored) if is_paid else FREE_TIER_LIMIT
-
     # Terminal output
     use_colour = sys.stdout.isatty() and not args.no_colour
     print(render_summary(scored, use_colour=use_colour))
-    print(render_findings(scored, limit=limit, use_colour=use_colour))
+    print(render_findings(scored, limit=len(scored), use_colour=use_colour))
     print(render_top_hosts(scored, top_n=args.top_hosts, use_colour=use_colour))
-    if not is_paid and len(scored) > FREE_TIER_LIMIT:
-        print(render_free_tier_gate(len(scored), FREE_TIER_LIMIT, use_colour=use_colour))
 
     # HTML report
     if args.html:
@@ -108,8 +101,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             findings=scored,
             output_path=Path(args.html),
             scan_file=Path(args.csv).name,
-            limit=FREE_TIER_LIMIT,
-            is_paid=is_paid,
         )
         print(f"\n  HTML report saved: {out}")
 
@@ -153,9 +144,9 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--top-hosts", type=int, default=10, metavar="N",
                          help="Show top N hosts by aggregate risk (default: 10)")
     analyze.add_argument("--all", action="store_true",
-                         help="Show all findings [Professional Edition]")
+                         help="(no-op; all findings are always shown in Community edition)")
     analyze.add_argument("--license", metavar="KEY",
-                         help="License key for Professional Edition")
+                         help="License key (reserved for Workflow edition plugins)")
     analyze.add_argument("--evidence", choices=["soc2", "iso27001"], metavar="FRAMEWORK",
                          help="Generate audit evidence pack (soc2, iso27001; more frameworks coming)")
     analyze.add_argument("--evidence-out", metavar="FILE",
@@ -165,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--json", action="store_true",
                          help="Output findings as JSON (suppresses terminal output)")
     analyze.add_argument("--sla-config", metavar="FILE",
-                         help="Path to SLA policy YAML (default: ~/.patchvex/sla.yaml)")
+                         help="Path to SLA policy YAML (default: ~/.vulnpilot/sla.yaml)")
 
     feeds = sub.add_parser("update-feeds", help="Download latest KEV and EPSS feeds")
 
@@ -183,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify_p.add_argument("--json", action="store_true",
                           help="Output verify result as JSON (suppresses terminal output)")
     verify_p.add_argument("--sla-config", metavar="FILE",
-                          help="Path to SLA policy YAML (default: ~/.patchvex/sla.yaml)")
+                          help="Path to SLA policy YAML (default: ~/.vulnpilot/sla.yaml)")
     verify_p.add_argument("--fail-on-breach", action="store_true",
                           help="Exit 2 if audit findings exist (expired/missing exceptions). "
                                "Exit 0 = clean. Exit 1 = tool error. Exit 2 = breach found.")
@@ -263,24 +254,16 @@ def cmd_verify(args) -> int:
             verify_result=result,
             governance_summary=gov_summary,
         )
-        print(f"  Evidence pack (with verification): {_out}")
+        _ev_dest = sys.stderr if getattr(args, "json", False) else sys.stdout
+        print(f"  Evidence pack (with verification): {_out}", file=_ev_dest)
 
     return 2 if (fail_on_breach and audit_findings) else 0
 
 
 def cmd_trend(args) -> int:
-    import sqlite3 as _sql
     from vulnpilot import history as _history
 
-    try:
-        conn = _sql.connect(_history.DB_PATH)
-        rows = conn.execute(
-            "SELECT timestamp_utc, total_findings, kev_count, critical_count"
-            " FROM scan_history ORDER BY timestamp_utc"
-        ).fetchall()
-        conn.close()
-    except Exception:
-        rows = []
+    rows = _history.get_trend_rows()
 
     if not rows:
         print("\n  No scan history yet. Run 'vulnpilot analyze <scan.csv>' first.")

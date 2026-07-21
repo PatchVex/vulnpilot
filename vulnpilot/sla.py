@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-CONFIG_PATH = Path.home() / ".patchvex" / "sla.yaml"
+CONFIG_PATH = Path.home() / ".vulnpilot" / "sla.yaml"
 DEFAULT_SLA = {"critical": 7, "high": 30, "medium": 90, "low": 180}
 SLA_WARN_PCT = 0.80
 
@@ -47,7 +47,8 @@ def load_sla_config(config_path: Optional[Path] = None) -> dict:
 def write_default_config() -> Path:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(
-        "# VulnPilot SLA policy — days to remediate by severity\n"
+        "# VulnPilot SLA policy (~/.vulnpilot/sla.yaml)\n"
+        "# Days allowed to remediate by severity level\n"
         "critical: 7\nhigh: 30\nmedium: 90\nlow: 180\n"
     )
     return CONFIG_PATH

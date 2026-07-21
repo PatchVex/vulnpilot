@@ -486,6 +486,16 @@ Issues, bug reports, and pull requests are welcome.
 
 Good first issues are labelled `good first issue` in the issue tracker. Please search existing issues before opening a new one.
 
+### Developer setup
+
+After cloning, run this once to activate the pre-push test gate:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook runs `python3 -m pytest tests/` before every push and is safe to share — it contains no absolute paths.
+
 ---
 
 ## Acknowledgements

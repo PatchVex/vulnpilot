@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vulnpilot"
-version = "0.6.0"
+version = "1.0.0"
 description = "Local-first vulnerability governance for security teams. Analyze vulnerability scan results, track SLA compliance, manage risk exceptions, and generate audit-ready evidence for SOC 2 and ISO/IEC 27001."
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["security", "vulnerability", "nessus", "cve", "kev", "epss", "devsecops", "compliance", "soc2", "iso27001", "audit", "sla", "governance"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
     "Intended Audience :: System Administrators",

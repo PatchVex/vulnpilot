@@ -7,6 +7,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.0.0] — 2026-07-21
+
+### Changed
+- **Community v1.0 — production/stable release.** All findings are always shown; no tier gates.
+- Removed all "Community Edition", "Upgrade to Professional", and pricing language from the
+  generated HTML report and terminal output. Reports are now clean, polished, and commercial-messaging-free.
+- Scanner format abstraction: `Finding` dataclass and `Scanner` ABC extracted to `vulnpilot/parser/base.py`;
+  `NessusScanner` class in `parser/nessus.py`; `parse()` auto-detecting dispatcher in `parser/__init__.py`.
+  Adding future scanners (Trivy, Qualys, etc.) requires only a new file + one registration line.
+- All product data paths standardized to `~/.vulnpilot/` (was `~/.patchvex/` in some locations).
+- `--all` flag preserved as a no-op for backward compatibility (all findings were already always shown).
+- `--license KEY` flag preserved as a no-op, reserved for future Workflow edition plugins.
+- `--evidence` informational message redirected to `stderr` when `--json` is active, keeping JSON
+  output valid for piping to `jq` or script consumption.
+- Development Status classifier updated to `5 - Production/Stable`.
+
+### Removed
+- `FREE_TIER_LIMIT` constant and `is_paid` logic removed from CLI and HTML report generator.
+- `render_free_tier_gate()` terminal function removed.
+- Dead upgrade CSS (`.upgrade-banner`, `.upgrade-text`, `.upgrade-sub`, `.upgrade-btn`) removed
+  from HTML report template.
+- Internal strategy and gap-analysis documents removed from tracked files.
+
+### Internal
+- `ARCHITECTURE.md` added at repo root as source of truth for module layout, scoring formula,
+  exit codes, evidence frameworks, and scanner extension points.
+- 77 automated tests passing.
+
+---
+
 ## [0.6.0] — 2026-07-17
 
 ### Added

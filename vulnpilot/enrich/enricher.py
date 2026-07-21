@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import List, Optional
-from vulnpilot.parser.nessus import Finding
+from vulnpilot.parser.base import Finding
 from .feeds import load_kev, load_epss
 
 logger = logging.getLogger(__name__)

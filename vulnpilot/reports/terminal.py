@@ -5,7 +5,7 @@ Renders prioritized findings to terminal output.
 from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import List
-from vulnpilot.parser.nessus import Finding
+from vulnpilot.parser.base import Finding
 
 RESET="\033[0m";BOLD="\033[1m";RED="\033[91m";ORANGE="\033[33m"
 YELLOW="\033[93m";CYAN="\033[96m";GREY="\033[90m";WHITE="\033[97m"
@@ -41,7 +41,7 @@ def render_summary(findings: List[Finding], use_colour: bool = True) -> str:
 
 def render_findings(findings: List[Finding], limit: int = 20, use_colour: bool = True) -> str:
     shown = findings[:limit]
-    lines = ["", _c(f"  TOP {limit} PRIORITIZED FINDINGS", BOLD, use_colour),
+    lines = ["", _c(f"  PRIORITIZED FINDINGS ({limit})", BOLD, use_colour),
              _c("  (KEV + EPSS + CVSS composite score)", GREY, use_colour), ""]
     header = f"  {'#':<5}{'Score':<7}{'Priority':<14}{'Host':<22}{'CVE':<20}{'Finding':<36}"
     lines.append(_c(header, BOLD, use_colour))
@@ -75,14 +75,3 @@ def render_top_hosts(findings: List[Finding], top_n: int = 10, use_colour: bool 
     lines.append("")
     return "\n".join(lines)
 
-def render_free_tier_gate(total: int, shown: int, use_colour: bool = True) -> str:
-    lines = [
-        "", _c("─"*60, GREY, use_colour),
-        _c(f"  FREE TIER: showing top {shown} of {total} findings", YELLOW, use_colour),
-        _c(f"  {total - shown} findings hidden.", YELLOW, use_colour), "",
-        "  Upgrade to VulnPilot Professional to unlock all findings,",
-        "  PDF reports, Jira integration, and scheduled scans.", "",
-        _c("  https://patchvex.com/pricing", CYAN, use_colour),
-        _c("─"*60, GREY, use_colour), "",
-    ]
-    return "\n".join(lines)

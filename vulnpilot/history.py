@@ -104,6 +104,20 @@ def scan_count() -> int:
         return 0
 
 
+def get_trend_rows() -> list:
+    """Return (timestamp_utc, total_findings, kev_count, critical_count) rows, oldest first."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute(
+            "SELECT timestamp_utc, total_findings, kev_count, critical_count"
+            " FROM scan_history ORDER BY timestamp_utc"
+        ).fetchall()
+        conn.close()
+        return rows
+    except Exception:
+        return []
+
+
 def first_scan_date() -> Optional[str]:
     try:
         conn = sqlite3.connect(DB_PATH)

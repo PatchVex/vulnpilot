@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import List
-from vulnpilot.parser.nessus import Finding
+from vulnpilot.parser.base import Finding
 
 logger = logging.getLogger(__name__)
 

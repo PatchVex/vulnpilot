@@ -69,7 +69,7 @@ class TestScoring:
         scores = [f.priority_score for f in scored]
         assert scores == sorted(scores, reverse=True)
 
-    def test_free_tier_limit(self):
+    def test_score_all_respects_limit(self):
         assert len(score_all(parse_nessus_csv(SAMPLE), limit=3)) <= 3
 
     def test_deterministic(self):
