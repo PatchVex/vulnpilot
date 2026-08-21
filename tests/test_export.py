@@ -472,3 +472,101 @@ def test_cli_export_in_json_mode_goes_to_stderr_not_stdout(tmp_path, monkeypatch
     data = json.loads(captured.out)
     assert data["command"] == "verify"
     assert "Ticket export" in captured.err
+
+
+# ── 17: CSV formula injection mitigation (OWASP CSV injection) ───────────
+
+FORMULA_PAYLOADS = [
+    "=SUM(1,2)",
+    "+123",
+    "-123",
+    "@SUM(1,2)",
+    "\tSUM(1,2)",
+    "\rSUM(1,2)",
+]
+
+
+@pytest.mark.parametrize("payload", FORMULA_PAYLOADS)
+def test_generic_csv_neutralises_formula_payloads(payload):
+    f = _finding(host=payload, solution=payload)
+    sla = _sla(host=payload)
+    gov = _governance(sla, "breached_no_exception")
+    records = build_ticket_records([f], [gov])
+    rendered = to_generic_csv(records)
+    rows = list(csv.reader(io.StringIO(rendered)))
+    header, row = rows[0], rows[1]
+    host_val = row[header.index("host")]
+    remediation_val = row[header.index("remediation")]
+    # Must not be readable as a live formula: leading char must be a quote.
+    assert host_val.startswith("'")
+    assert host_val == "'" + payload
+    assert remediation_val.startswith("'")
+    assert remediation_val == "'" + payload
+
+
+@pytest.mark.parametrize("payload", FORMULA_PAYLOADS)
+def test_jira_csv_neutralises_formula_payloads(payload):
+    f = _finding(host=payload, synopsis=payload)
+    sla = _sla(host=payload)
+    gov = _governance(sla, "breached_no_exception")
+    gov.finding_key = (payload, "33850", "443")
+    records = build_ticket_records([f], [gov])
+    rendered = to_jira_csv(records)
+    rows = list(csv.reader(io.StringIO(rendered)))
+    header, row = rows[0], rows[1]
+    host_val = row[header.index("Host")]
+    desc_val = row[header.index("Description")]
+    assert host_val == "'" + payload
+    assert desc_val.startswith("'" + payload)
+
+
+def test_generic_csv_normal_values_unchanged():
+    f = _finding(host="10.0.0.1", name="Normal Finding Name", synopsis="Normal synopsis.")
+    sla = _sla()
+    gov = _governance(sla, "breached_no_exception")
+    records = build_ticket_records([f], [gov])
+    rendered = to_generic_csv(records)
+    rows = list(csv.reader(io.StringIO(rendered)))
+    header, row = rows[0], rows[1]
+    assert row[header.index("host")] == "10.0.0.1"
+    assert row[header.index("finding")] == "Normal Finding Name"
+    assert row[header.index("description")] == "Normal synopsis."
+
+
+def test_jira_csv_normal_values_unchanged():
+    f = _finding(host="10.0.0.1", synopsis="Normal synopsis.")
+    sla = _sla()
+    gov = _governance(sla, "breached_no_exception")
+    records = build_ticket_records([f], [gov])
+    rendered = to_jira_csv(records)
+    rows = list(csv.reader(io.StringIO(rendered)))
+    header, row = rows[0], rows[1]
+    assert row[header.index("Host")] == "10.0.0.1"
+
+
+def test_json_export_not_sanitised_for_formulas():
+    """JSON is never opened in spreadsheet software — values must be
+    passed through verbatim, unlike the CSV formats."""
+    payload_value = "=SUM(1,2)"
+    f = _finding(host=payload_value)
+    sla = _sla(host=payload_value)
+    gov = _governance(sla, "breached_no_exception")
+    gov.finding_key = (payload_value, "33850", "443")
+    records = build_ticket_records([f], [gov])
+    data = json.loads(to_json(records))
+    assert data["records"][0]["host"] == payload_value
+
+
+def test_csv_formula_mitigation_preserves_rfc4180_escaping():
+    """Formula-neutralised values with commas, quotes, newlines, and
+    Unicode must still round-trip correctly through the CSV parser."""
+    payload = '=cmd|\' /C calc\'!A1, "quoted", unicode: café\nsecond line'
+    f = _finding(host="10.0.0.1", name=payload)
+    sla = _sla()
+    gov = _governance(sla, "breached_no_exception")
+    records = build_ticket_records([f], [gov])
+    rendered = to_generic_csv(records)
+    rows = list(csv.reader(io.StringIO(rendered)))
+    header, row = rows[0], rows[1]
+    finding_val = row[header.index("finding")]
+    assert finding_val == "'" + payload

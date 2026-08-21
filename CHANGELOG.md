@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.1.0] — 2026-08-21
 
 ### Added
 - **Actionable remediation ticket export** — `vulnpilot verify --export-tickets FILE --ticket-format FORMAT`.
@@ -20,6 +20,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   - New module: `vulnpilot/export.py` (`TicketRecord`, `build_ticket_records`, `render`).
   - Fully additive and backward compatible: `verify` output and exit codes are unchanged when the
     new flags are not used.
+
+### Security
+- **CSV formula injection (OWASP CSV injection) mitigated in ticket export.** `generic-csv` and
+  `jira-csv` output now prefix any cell value starting with `=`, `+`, `-`, `@`, tab, or CR with a
+  single quote (`'`) before writing, preventing scan-derived field values from being interpreted
+  as active formulas when the exported file is opened in Excel, Google Sheets, or LibreOffice.
+  `json` output is unaffected (JSON is never opened in spreadsheet software). RFC 4180 CSV escaping
+  (commas, quotes, embedded newlines) is unchanged.
+
+### Internal
+- 130 automated tests passing.
 
 ## [1.0.0] — 2026-07-21
 

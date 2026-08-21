@@ -136,19 +136,41 @@ CSV_FIELDS = [
 ]
 
 
+_FORMULA_LEAD_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    """Neutralise spreadsheet formula injection (OWASP CSV injection).
+
+    A cell value starting with =, +, -, @, tab, or CR is interpreted as an
+    active formula by Excel/Sheets/LibreOffice on import. Prefixing with a
+    single quote forces it to be read as literal text. Only applied to CSV
+    output — JSON is never opened in spreadsheet software.
+    """
+    if isinstance(value, str) and value.startswith(_FORMULA_LEAD_CHARS):
+        return "'" + value
+    return value
+
+
+def _csv_safe_row(row: dict) -> dict:
+    return {k: _csv_safe(v) for k, v in row.items()}
+
+
 def to_generic_csv(records: List[TicketRecord]) -> str:
     """Render ticket records as generic CSV.
 
     Column order matches CSV_FIELDS exactly (documented in README). Uses
     csv.writer with default dialect (QUOTE_MINIMAL), which correctly
     escapes commas, quotes, and embedded newlines in any field —
-    standard-compliant output any CSV-import tool can read.
+    standard-compliant output any CSV-import tool can read. String values
+    that would be interpreted as spreadsheet formulas are neutralised via
+    _csv_safe (see OWASP CSV injection).
     """
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CSV_FIELDS, lineterminator="\n")
     writer.writeheader()
     for r in records:
-        writer.writerow(asdict(r))
+        writer.writerow(_csv_safe_row(asdict(r)))
     return buf.getvalue()
 
 
@@ -190,7 +212,9 @@ def to_jira_csv(records: List[TicketRecord]) -> str:
     Maps VulnPilot's priority_label onto Jira's default priority scheme
     (Highest/High/Medium/Low) and combines synopsis + remediation guidance
     into a single Description field. Column set intentionally minimal —
-    see JIRA_CSV_FIELDS docstring for scope/limitations.
+    see JIRA_CSV_FIELDS docstring for scope/limitations. String values
+    that would be interpreted as spreadsheet formulas are neutralised via
+    _csv_safe (see OWASP CSV injection).
     """
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=JIRA_CSV_FIELDS, lineterminator="\n")
@@ -202,7 +226,7 @@ def to_jira_csv(records: List[TicketRecord]) -> str:
         labels = "vulnpilot"
         if r.kev:
             labels += " kev"
-        writer.writerow({
+        writer.writerow(_csv_safe_row({
             "Summary": r.summary,
             "Issue Type": "Bug",
             "Priority": _JIRA_PRIORITY_MAP.get(r.priority or "", "Medium"),
@@ -218,7 +242,7 @@ def to_jira_csv(records: List[TicketRecord]) -> str:
             "SLA Days": r.sla_days if r.sla_days is not None else "",
             "Due In Days": r.due_in_days if r.due_in_days is not None else "",
             "Governance Status": r.governance_status,
-        })
+        }))
     return buf.getvalue()
 
 

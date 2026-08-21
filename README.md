@@ -9,7 +9,7 @@ VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST 
 [![Downloads](https://img.shields.io/pypi/dm/vulnpilot.svg)](https://pypistats.org/packages/vulnpilot)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
-[![Status: v1.0 Community](https://img.shields.io/badge/status-v1.0%20community-brightgreen.svg)]()
+[![Status: v1.1 Community](https://img.shields.io/badge/status-v1.1%20community-brightgreen.svg)]()
 
 ---
 
@@ -25,14 +25,15 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 ---
 
-## What's in Community v1.0.0
+## What's in Community v1.1.0
 
-The first stable release of VulnPilot. Everything below ships in the base `pip install`:
+The current stable release of VulnPilot. Everything below ships in the base `pip install`:
 
 - **Composite risk scoring** — KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)
 - **Remediation verification** — `vulnpilot verify` diffs a new scan against history; classifies findings as fixed, still open, or new
 - **SLA compliance tracking** — per-severity deadlines with configurable policy; breach detection with approved/expired/unexcused classification
 - **Exception register** — CSV-based approval tracking; exceptions surface as audit findings when expired or missing
+- **Actionable remediation ticket export** — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv` writes governance-classified audit findings to a ticket-ready file
 - **Audit evidence packs** — one-command Markdown output mapped to SOC 2 CC7.1 and ISO 27001 A.8.8
 - **HTML report** — self-contained, shareable report with executive summary and prioritized findings table
 - **Posture trend** — `vulnpilot trend` shows total findings, KEV count, and critical count across all recorded scans
@@ -490,7 +491,7 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] `--evidence` messages routed to `stderr` when `--json` is active — clean JSON stream guaranteed
 - [x] `ARCHITECTURE.md` — public source of truth for module layout, scoring formula, and extension points
 
-**v1.1.0 — In progress**
+**v1.1.0 — Released ✅**
 - [x] Actionable remediation export — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv`
 
 **Later**
