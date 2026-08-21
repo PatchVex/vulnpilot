@@ -7,6 +7,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Actionable remediation ticket export** — `vulnpilot verify --export-tickets FILE --ticket-format FORMAT`.
+  Writes governance-classified audit findings (breached SLA with no valid or an expired exception —
+  the same classification `verify`'s own output already computes) to a ticket-ready file.
+  - `generic-csv` (default) — importable into Jira, ServiceNow, Linear, or any CSV-import tool.
+  - `json` — stable, documented schema (`schema_version: 1`) for scripted integrations.
+  - `jira-csv` — Jira's default CSV-import column set. Not a Jira API integration; no credentials,
+    no network call.
+  - New module: `vulnpilot/export.py` (`TicketRecord`, `build_ticket_records`, `render`).
+  - Fully additive and backward compatible: `verify` output and exit codes are unchanged when the
+    new flags are not used.
+
 ## [1.0.0] — 2026-07-21
 
 ### Changed

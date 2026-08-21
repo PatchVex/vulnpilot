@@ -199,6 +199,39 @@ VulnPilot reads this file automatically on every `verify` run. If the file does 
 
 ---
 
+## Ticket Export
+
+`vulnpilot verify` already tells you exactly which findings need action — a breached SLA with no valid exception on file. Historically, turning that into work meant retyping every CVE, host, and priority into your ticketing system by hand. `--export-tickets` closes that gap: it writes the same governance-classified findings to a file you can import directly.
+
+```bash
+# Generic CSV — importable into Jira, ServiceNow, Linear, or any tool with CSV import
+vulnpilot verify new_scan.csv --exceptions exceptions.csv --export-tickets tickets.csv
+
+# JSON — for scripting your own integration
+vulnpilot verify new_scan.csv --exceptions exceptions.csv \
+    --export-tickets tickets.json --ticket-format json
+
+# Jira-oriented CSV column set (see limitations below)
+vulnpilot verify new_scan.csv --exceptions exceptions.csv \
+    --export-tickets tickets.csv --ticket-format jira-csv
+```
+
+**What gets exported.** Exactly the findings `verify`'s own Governance Summary already flags as audit findings: SLA-breached with no exception on file, or with an exception that has expired. Findings that are fixed, within SLA, approaching SLA, breached-but-formally-approved, or have no history yet are never exported — this reuses the same classification `verify` already computes, not a second definition of "actionable."
+
+**Formats:**
+
+| Format | Use case |
+|---|---|
+| `generic-csv` (default) | Universal — any tool with CSV import (Jira, ServiceNow, Linear, Trello, spreadsheets) |
+| `json` | Scripting your own integration or pushing to a tool with no CSV importer |
+| `jira-csv` | Jira's built-in CSV importer column set (Summary, Issue Type, Priority, Description, Labels, plus finding metadata) |
+
+**Generic CSV / JSON schema** (`schema_version: 1`): `summary, priority, score, host, port, plugin_id, cve, finding, severity, cvss, epss, kev, days_open, sla_days, sla_status, due_in_days, governance_status, exception_ticket_ref, exception_approver, exception_expiry, description, remediation`.
+
+**Limitations — read before relying on `jira-csv`.** This is a *ticket-ready export*, not a Jira integration: there is no API call, no credentials, and no connection to Jira at all. The `jira-csv` format targets Jira's default "External System Import" column set — it does not account for custom fields, required fields specific to your project's issue-type screen, or non-default workflows. Verify the import against a test project before relying on it. For anything beyond CSV import, use `--ticket-format json` and script your own push.
+
+---
+
 ## Local Scan History
 
 Every analysis run is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` — on your machine only, never transmitted.
@@ -457,11 +490,14 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] `--evidence` messages routed to `stderr` when `--json` is active — clean JSON stream guaranteed
 - [x] `ARCHITECTURE.md` — public source of truth for module layout, scoring formula, and extension points
 
+**v1.1.0 — In progress**
+- [x] Actionable remediation export — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv`
+
 **Later**
 - [ ] DPDP and HIPAA evidence packs
 - [ ] Qualys CSV support
 - [ ] Weekly digest
-- [ ] Jira / Slack integration
+- [ ] Direct Jira / ServiceNow / Slack API integration (credentialed push — builds on the ticket export schema above, not yet implemented)
 
 Future development priorities are driven by community feedback and real-world usage.
 
