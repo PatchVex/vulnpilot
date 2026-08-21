@@ -22,6 +22,7 @@ from vulnpilot.scoring import score_all
 from vulnpilot.reports import (
     render_summary, render_findings, render_top_hosts, generate_html_report
 )
+from vulnpilot import export
 
 
 def _finding_to_dict(f) -> dict:
@@ -127,6 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
                "  vulnpilot analyze scan.csv --evidence soc2\n"
                "  vulnpilot verify new_scan.csv --exceptions exceptions.csv\n"
                "  vulnpilot verify new_scan.csv --exceptions exceptions.csv --evidence iso27001\n"
+               "  vulnpilot verify new_scan.csv --exceptions exceptions.csv "
+               "--export-tickets tickets.csv\n"
                "\n"
                "docs: https://github.com/PatchVex/vulnpilot/tree/main/docs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -178,6 +181,13 @@ def build_parser() -> argparse.ArgumentParser:
     verify_p.add_argument("--fail-on-breach", action="store_true",
                           help="Exit 2 if audit findings exist (expired/missing exceptions). "
                                "Exit 0 = clean. Exit 1 = tool error. Exit 2 = breach found.")
+    verify_p.add_argument("--export-tickets", metavar="FILE",
+                          help="Export actionable findings (audit findings: breached with no "
+                               "valid exception) as ticket-ready records to FILE")
+    verify_p.add_argument("--ticket-format", choices=list(export.SUPPORTED_FORMATS),
+                          default=export.DEFAULT_FORMAT, metavar="FORMAT",
+                          help=f"Format for --export-tickets (default: {export.DEFAULT_FORMAT}). "
+                               f"Choices: {', '.join(export.SUPPORTED_FORMATS)}")
 
     sub.add_parser("trend", help="Show findings trend across recorded scan history")
     feeds.add_argument("--cache", help="Cache directory for feeds")
@@ -224,6 +234,19 @@ def cmd_verify(args) -> int:
     fail_on_breach = getattr(args, "fail_on_breach", False)
 
     _history.record_scan(scored, scan_file=Path(args.csv))
+
+    if getattr(args, "export_tickets", None):
+        fmt = getattr(args, "ticket_format", None) or export.DEFAULT_FORMAT
+        try:
+            records = export.build_ticket_records(scored, governance)
+            rendered = export.render(records, fmt, scan_file=args.csv)
+        except ValueError as e:
+            print(f"\n  ERROR: {e}", file=sys.stderr)
+            return 1
+        Path(args.export_tickets).write_text(rendered, encoding="utf-8")
+        _dest = sys.stderr if getattr(args, "json", False) else sys.stdout
+        print(f"  Ticket export ({fmt}, {len(records)} actionable finding(s)): "
+              f"{args.export_tickets}", file=_dest)
 
     if getattr(args, "json", False):
         payload = {

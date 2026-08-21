@@ -58,6 +58,7 @@ vulnpilot/
 ├── cli.py                   # command dispatcher + all command handlers
 ├── evidence.py              # audit evidence pack generation
 ├── exceptions.py            # exception register + governance classification
+├── export.py                # actionable remediation ticket export
 ├── history.py               # SQLite scan history (Type II audit trail)
 ├── sla.py                   # SLA compliance engine
 ├── verify.py                # remediation verification (scan diff)
@@ -219,6 +220,8 @@ The Workflow edition is built on top of the Community engine. It does not restri
 
 **Workflow edition rule:** If it removes repetitive manual work for a team, it belongs here and companies pay for it.
 
+**Note:** Community's local, credential-free ticket export (`verify --export-tickets`, see `export.py`) is the free precursor to the "Jira integration" row above — it produces the same underlying record set but writes a file rather than calling an API. Direct authenticated push stays Workflow edition.
+
 **Implementation constraint:** Workflow edition code must live outside the `vulnpilot/` core package. It should import from `vulnpilot` as a library but add no changes to the core engine.
 
 ### Governance Edition (future — do not build yet)
@@ -308,6 +311,7 @@ vulnpilot verify  <scan.csv>         [--exceptions FILE] [--evidence FRAMEWORK]
                                       [--evidence-out FILE] [--json]
                                       [--kev FILE] [--epss FILE]
                                       [--sla-config FILE] [--fail-on-breach]
+                                      [--export-tickets FILE] [--ticket-format FORMAT]
                                       [--no-colour]
 
 vulnpilot update-feeds               [--cache DIR]
@@ -595,6 +599,21 @@ path = generate_evidence_pack(
 )
 ```
 
+### Ticket export
+
+```python
+from vulnpilot.export import build_ticket_records, render
+
+# findings = scored findings (same list passed to compute_all_sla)
+# governance = FindingGovernance list from exceptions.classify_all()
+records = build_ticket_records(findings, governance)   # only audit_finding=True records
+output = render(records, "generic-csv")   # or "json", "jira-csv"
+```
+
+`build_ticket_records` reuses `FindingGovernance.audit_finding` as the sole
+definition of "actionable" — it introduces no competing classification
+logic. See README § Ticket Export for the full field schema.
+
 ### History
 
 ```python
@@ -663,7 +682,9 @@ Example entry:
 
 ### Adding output formats
 
-New output formats (e.g. CSV export, SARIF) should be added to `reports/` as new files. Existing `terminal.py` and `html.py` are not modified.
+New output formats that render an already-assembled finding list (e.g. SARIF) should be added to `reports/` as new files. Existing `terminal.py` and `html.py` are not modified.
+
+Formats that require new selection/business logic *before* rendering (deciding which findings qualify, not just how to print them) follow the `evidence.py` precedent instead: a dedicated top-level module. `export.py` (ticket export) is one — it reuses `FindingGovernance.audit_finding` to select records, then renders in multiple formats. Don't add new selection logic to `reports/`; don't add new pure-rendering formats to `export.py` or `evidence.py`.
 
 ### Workflow Edition integration
 
