@@ -16,7 +16,7 @@ VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST 
 ## Quick Start
 
 ```bash
-pip install vulnpilot           # see "Getting 1.2.0" below
+pip install vulnpilot
 vulnpilot update-feeds          # download the public CISA KEV and FIRST EPSS feeds
 vulnpilot analyze scan.csv      # prioritize a Nessus CSV export; records the scan in local history
 vulnpilot verify new_scan.csv   # later: compare your next scan against history (fixed / still open / new)
@@ -24,17 +24,11 @@ vulnpilot verify new_scan.csv   # later: compare your next scan against history 
 
 VulnPilot downloads the latest public threat intelligence, analyzes your Nessus scan locally, and ranks findings by actual exploitation risk. No API keys. No cloud upload. No account required.
 
-> **Getting 1.2.0:** v1.2.0 is tagged on GitHub; PyPI still serves 1.1.0, so `pip install vulnpilot` installs 1.1.0, which lacks the 1.2.0 features (workspaces, `--scan-date`, `--exclude-run`, wildcard/CIDR exceptions, `--json` on `trend`/`update-feeds`). Until 1.2.0 is on PyPI, install it from the tag:
->
-> ```bash
-> pip install "git+https://github.com/PatchVex/vulnpilot.git@v1.2.0"
-> ```
-
 ---
 
 ## What's in Community v1.2.0
 
-The current release of VulnPilot (see [Getting 1.2.0](#quick-start) — PyPI still serves 1.1.0). Everything below is implemented in 1.2.0:
+Everything below is implemented in 1.2.0 and later:
 
 - **Nessus CSV analysis** — the supported scanner format today
 - **Composite risk scoring** — KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)
@@ -332,8 +326,7 @@ Only public threat intelligence feeds are downloaded. No API keys required. Your
 ## Install
 
 ```bash
-pip install vulnpilot                                                   # PyPI: currently 1.1.0
-pip install "git+https://github.com/PatchVex/vulnpilot.git@v1.2.0"     # 1.2.0 from the release tag
+pip install vulnpilot
 ```
 
 Tested on Python 3.10, 3.11, and 3.12. Zero runtime dependencies — pure stdlib. Check what you have with `vulnpilot --version`.
@@ -424,7 +417,7 @@ With `--json`, stdout contains only JSON — progress and errors go to stderr �
 | Command | Fields |
 |---|---|
 | `analyze` | `command`, `scan_file`, `total_findings`, `findings`, `history_id`, `scan_date`, `recorded_at` |
-| `verify` | `command`, `scan_file`, `baseline_date`, `summary`, `governance`, `fixed`, `still_open`, `new`, `out_of_scope_hosts`, `findings` |
+| `verify` | `command`, `scan_file`, `baseline_date`, `summary`, `governance`, `fixed`, `still_open`, `new`, `out_of_scope_hosts`, `findings`, `baseline_run_id`, `history_id` |
 | `trend` | `command`, `runs` (each: `timestamp_utc`, `total_findings`, `kev_count`, `critical_count`, `scan_date`) |
 | `update-feeds` | `command`, `cache_dir` |
 
@@ -451,7 +444,7 @@ vulnpilot analyze first_scan.csv
 vulnpilot verify new_scan.csv --json --fail-on-breach > vulnpilot-verify.json
 ```
 
-Do not run `analyze` and then `verify` on the same scan without telling `verify` — the scan would be recorded by `analyze` and then compared against itself. If you need `analyze` output for the same scan first, pass the history run ID it reports to `--exclude-run`:
+Do not run `analyze` and then `verify` on the same scan without telling `verify` — the scan would be recorded by `analyze` and then compared against itself. `verify` warns on stderr when its baseline was recorded from the same scan file, including when the same `verify` is re-run. If you need `analyze` output for the same scan first, pass the history run ID it reports to `--exclude-run`:
 
 ```bash
 vulnpilot analyze new_scan.csv --json > vulnpilot-analyze.json
@@ -603,13 +596,19 @@ Automated feed synchronization via GitHub Actions is not currently implemented. 
 **v1.1.0 — Released ✅**
 - [x] Actionable remediation export — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv`
 
-**v1.2.0 — Tagged ✅** (git tag `v1.2.0`; not yet published to PyPI)
+**v1.2.0 — Released ✅**
 - [x] CLI reads scans through the scanner registry (`vulnpilot.parser.parse`)
 - [x] `--workspace` — separate history per client or environment
 - [x] `analyze --scan-date` — import older scans, marked as imported
 - [x] `verify --exclude-run` — explicit baseline exclusion; `analyze` reports the history run ID
 - [x] Wildcard and CIDR exception matching
 - [x] `--json` on every command; JSON-only stdout; usage errors exit `1`
+
+**v1.2.1 — Released ✅**
+- [x] `verify` warns when its baseline was recorded from the same scan file; `verify --json` adds `baseline_run_id` and `history_id`
+- [x] Unreadable exception expiry dates are treated as expired instead of "no expiry"
+- [x] Breach detail shows each finding's port, CVE and name
+- [x] Unwritable output paths are a clean `ERROR:` with exit `1`; `verify` has no ANSI colour when output is not a terminal; evidence-pack metadata renders one field per line
 
 **Later**
 - [ ] DPDP and HIPAA evidence packs

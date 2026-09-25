@@ -1,6 +1,6 @@
 # PatchVex — Architecture Reference
 
-**Version:** Community v1.2.0  
+**Version:** Community v1.2.1  
 **Status:** Source of truth for all future development decisions  
 **Last updated:** 2026-09-25
 
@@ -412,11 +412,13 @@ This contract is stable. CI/CD pipelines depend on it. `2` is never used for any
   "still_open": [...],
   "new": [...],
   "out_of_scope_hosts": [...],
-  "findings": [...]
+  "findings": [...],
+  "baseline_run_id": 7,
+  "history_id": 8
 }
 ```
 
-With no actionable findings the same shape is printed with `baseline_date: null`, zero counts and empty lists.
+`baseline_run_id` (added in v1.2.1) is the history run ID selected as the verification baseline. `history_id` (added in v1.2.1) is the history run ID this `verify` recorded for the current scan, or `null` if the scan could not be recorded. Both are appended after the v1.2.0 fields; no existing field changed. With no actionable findings the same shape is printed with `baseline_date: null`, `baseline_run_id: null`, `history_id: null` (no baseline is loaded and nothing is recorded), zero counts and empty lists.
 
 **`vulnpilot trend --json`**
 
@@ -473,6 +475,7 @@ CSV with columns: `host, plugin_id, port, ticket_ref, approver, approved_date, e
 - `host`, `plugin_id` and `port` may be `*`; `host` may be a CIDR range. An exact row wins over a pattern, otherwise the most specific matching row applies (exact field 2, CIDR host 1, `*` 0; between equal-scoring CIDR rows the longer prefix wins; remaining ties → first row in the file). A row matching everything is rejected. Duplicate `host, plugin_id, port` rows: the later row replaces the earlier one, with a warning.
 - A row that leaves off trailing optional columns is accepted with them empty; a row missing a required field or with extra fields is skipped with a warning; a file missing required columns, or a missing `--exceptions` path, is an error (exit `1`).
 - Date formats accepted: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `DD-MM-YYYY` (ambiguous dates read as DD/MM). Full format: `docs/evidence.md`.
+- `expiry_date` (fail-closed since v1.2.1): blank means no expiry; a date in an accepted format expires the exception after that date; a non-blank value that cannot be read in an accepted format (e.g. `31st Dec`, `2026-02-30`, `2026-12-31T00:00:00`) makes the exception invalid — it is treated as expired rather than as "no expiry", so a breached finding it matches is `breached_expired` (an audit finding), with a warning naming the line. Matching and precedence are unchanged: such a row still applies wherever it would otherwise win.
 
 ---
 
@@ -561,6 +564,9 @@ class VerifyResult:
     new: List[dict]
     out_of_scope_hosts: List[str]
     baseline_scan_date: Optional[str]    # set only if the baseline was imported with --scan-date
+    baseline_run_id: Optional[int]       # history row id of the baseline run
+    baseline_file_hash: Optional[str]    # SHA-256 of the scan file the baseline was recorded from;
+                                         # None for runs recorded without a scan file hash
 
     @property
     def summary(self) -> dict: ...      # counts of each category

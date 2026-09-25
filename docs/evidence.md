@@ -110,7 +110,10 @@ host,plugin_id,port,ticket_ref,approver,approved_date,expiry_date,reason
 - An exception is valid when it has a `ticket_ref` and `approver` and its
   `expiry_date` has not passed. Dates can be `YYYY-MM-DD`, `DD/MM/YYYY`,
   `MM/DD/YYYY` or `DD-MM-YYYY`; an ambiguous date such as `03/04/2026` is
-  read as DD/MM (3 April), so prefer `YYYY-MM-DD`.
+  read as DD/MM (3 April), so prefer `YYYY-MM-DD`. A non-blank `expiry_date`
+  that cannot be read (e.g. `31st Dec`, `2026-02-30`) makes the exception
+  invalid — the finding is reported as `breached_expired` — until it is
+  corrected; a blank `expiry_date` means no expiry.
 - A row may leave off trailing optional columns (such as `reason`); they are treated as empty. A row missing `host`, `plugin_id` or `port`, or with more fields than the header, is skipped with a warning naming the line.
 
 ## Supported frameworks
@@ -170,7 +173,7 @@ The exception register is a plain CSV file with the following columns:
 | `ticket_ref` | Yes | Ticket or change reference (e.g. `JIRA-4521`) |
 | `approver` | Yes | Name or role of approver (e.g. `CISO`) |
 | `approved_date` | No | Date approved (`YYYY-MM-DD`) |
-| `expiry_date` | No | Date exception expires (`YYYY-MM-DD`); blank = no expiry |
+| `expiry_date` | No | Date exception expires (`YYYY-MM-DD`); blank = no expiry; unreadable = exception invalid |
 | `reason` | No | Free-text reason |
 
 Example:

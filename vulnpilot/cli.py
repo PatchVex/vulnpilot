@@ -49,6 +49,18 @@ def _finding_to_dict(f) -> dict:
     }
 
 
+def _write_error(what: str, path, e: OSError, history_id: Optional[int] = None) -> int:
+    """Report an output file that could not be written; returns exit code 1.
+    History is recorded before outputs are written, so say so when it was."""
+    path = e.filename or path
+    reason = e.strerror or str(e)
+    recorded = (f" The scan was already recorded to history as run {history_id}."
+                if history_id is not None else "")
+    print(f"\n  ERROR: Could not write {what} to {path}: {reason}.{recorded}",
+          file=sys.stderr)
+    return 1
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     scan_date = None
     if getattr(args, "scan_date", None) is not None:
@@ -100,24 +112,31 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     if getattr(args, "evidence", None):
         from vulnpilot.evidence import generate_evidence_pack
-        _out = generate_evidence_pack(
-            findings=scored,
-            framework=args.evidence,
-            scan_file=Path(args.csv),
-            output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
-            scan_date=scan_date,
-            recorded_at=recorded_at,
-        )
+        try:
+            _out = generate_evidence_pack(
+                findings=scored,
+                framework=args.evidence,
+                scan_file=Path(args.csv),
+                output_path=Path(args.evidence_out) if getattr(args, "evidence_out", None) else None,
+                scan_date=scan_date,
+                recorded_at=recorded_at,
+            )
+        except OSError as e:
+            return _write_error("evidence pack", getattr(args, "evidence_out", None),
+                                e, history_id)
         _ev_dest = sys.stderr if getattr(args, "json", False) else sys.stdout
         print(f"\n  Evidence pack written: {_out}", file=_ev_dest)
 
     if getattr(args, "json", False):
         if args.html:
-            out = generate_html_report(
-                findings=scored,
-                output_path=Path(args.html),
-                scan_file=Path(args.csv).name,
-            )
+            try:
+                out = generate_html_report(
+                    findings=scored,
+                    output_path=Path(args.html),
+                    scan_file=Path(args.csv).name,
+                )
+            except OSError as e:
+                return _write_error("HTML report", args.html, e, history_id)
             print(f"\n  HTML report saved: {out}", file=sys.stderr)
         payload = {
             "command": "analyze",
@@ -139,11 +158,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     # HTML report
     if args.html:
-        out = generate_html_report(
-            findings=scored,
-            output_path=Path(args.html),
-            scan_file=Path(args.csv).name,
-        )
+        try:
+            out = generate_html_report(
+                findings=scored,
+                output_path=Path(args.html),
+                scan_file=Path(args.csv).name,
+            )
+        except OSError as e:
+            return _write_error("HTML report", args.html, e, history_id)
         print(f"\n  HTML report saved: {out}")
 
     if history_id is not None:
@@ -380,6 +402,8 @@ def cmd_verify(args) -> int:
                 "new": [],
                 "out_of_scope_hosts": [],
                 "findings": [],
+                "baseline_run_id": None,
+                "history_id": None,
             }, indent=2))
             return 0
         print("\n  No actionable findings in this CSV.")
@@ -399,6 +423,9 @@ def cmd_verify(args) -> int:
     except ValueError as e:
         print(f"\n  ERROR: {e}", file=sys.stderr)
         return 1
+
+    from vulnpilot.verify import self_comparison_warning
+    self_compare = self_comparison_warning(result, Path(args.csv))
 
     sla_cfg_path = getattr(args, "sla_config", None)
     sla_config = load_sla_config(Path(sla_cfg_path)) if sla_cfg_path else load_sla_config()
@@ -421,7 +448,7 @@ def cmd_verify(args) -> int:
     audit_findings = gov_summary.get("audit_findings", 0)
     fail_on_breach = getattr(args, "fail_on_breach", False)
 
-    _history.record_scan(scored, scan_file=Path(args.csv))
+    history_id = _history.record_scan(scored, scan_file=Path(args.csv))
 
     if getattr(args, "export_tickets", None):
         fmt = getattr(args, "ticket_format", None) or export.DEFAULT_FORMAT
@@ -431,14 +458,23 @@ def cmd_verify(args) -> int:
         except ValueError as e:
             print(f"\n  ERROR: {e}", file=sys.stderr)
             return 1
-        Path(args.export_tickets).write_text(rendered, encoding="utf-8")
+        try:
+            Path(args.export_tickets).write_text(rendered, encoding="utf-8")
+        except OSError as e:
+            return _write_error("ticket export", args.export_tickets, e, history_id)
         _dest = sys.stderr if getattr(args, "json", False) else sys.stdout
         print(f"  Ticket export ({fmt}, {len(records)} actionable finding(s)): "
               f"{args.export_tickets}", file=_dest)
 
     if getattr(args, "json", False):
         if getattr(args, "evidence", None):
-            _write_verify_evidence(args, scored, result, gov_summary)
+            try:
+                _write_verify_evidence(args, scored, result, gov_summary)
+            except OSError as e:
+                return _write_error("evidence pack", getattr(args, "evidence_out", None),
+                                    e, history_id)
+        if self_compare:
+            print(f"\n  {self_compare}", file=sys.stderr)
         payload = {
             "command": "verify",
             "scan_file": args.csv,
@@ -450,15 +486,24 @@ def cmd_verify(args) -> int:
             "new": result.new,
             "out_of_scope_hosts": result.out_of_scope_hosts,
             "findings": [_finding_to_dict(f) for f in scored],
+            "baseline_run_id": result.baseline_run_id,
+            "history_id": history_id,
         }
         print(json.dumps(payload, indent=2))
         return 2 if (fail_on_breach and audit_findings) else 0
 
+    use_colour = sys.stdout.isatty() and not getattr(args, "no_colour", False)
     print(render_verify(result, sla_statuses=sla_statuses, governance=governance,
-                        use_colour=not getattr(args, "no_colour", False)))
+                        use_colour=use_colour, findings=scored))
+    if self_compare:
+        print(f"  {self_compare}\n", file=sys.stderr)
 
     if getattr(args, "evidence", None):
-        _write_verify_evidence(args, scored, result, gov_summary)
+        try:
+            _write_verify_evidence(args, scored, result, gov_summary)
+        except OSError as e:
+            return _write_error("evidence pack", getattr(args, "evidence_out", None),
+                                e, history_id)
 
     return 2 if (fail_on_breach and audit_findings) else 0
 

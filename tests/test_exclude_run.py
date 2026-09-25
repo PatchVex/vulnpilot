@@ -137,7 +137,11 @@ NORMAL_VERIFY_JSON_TYPES = {
     "command": str, "scan_file": str, "baseline_date": str, "summary": dict,
     "governance": dict, "fixed": list, "still_open": list, "new": list,
     "out_of_scope_hosts": list, "findings": list,
+    # 1.2.1: appended, so existing keys keep their order
+    "baseline_run_id": int, "history_id": int,
 }
+# null when there is no baseline / nothing was recorded
+_NULLABLE_IN_EMPTY = {"baseline_date", "baseline_run_id", "history_id"}
 
 
 def _info_only_csv(tmp_path):
@@ -160,7 +164,7 @@ def test_verify_json_no_actionable_findings_emits_empty_verify_json(tmp_path, ca
         "governance": {"within_sla": 0, "breached_approved": 0, "breached_expired": 0,
                        "breached_no_exception": 0, "unknown": 0, "audit_findings": 0},
         "fixed": [], "still_open": [], "new": [], "out_of_scope_hosts": [],
-        "findings": [],
+        "findings": [], "baseline_run_id": None, "history_id": None,
     }
     assert "No actionable findings" in err
     assert not history.DB_PATH.exists()  # nothing recorded
@@ -177,7 +181,9 @@ def test_verify_empty_json_matches_normal_verify_json_shape(tmp_path, capsys):
     assert set(empty["governance"]) == set(normal["governance"])
     for key, typ in NORMAL_VERIFY_JSON_TYPES.items():
         assert isinstance(normal[key], typ), key
-        if key != "baseline_date":
+        if key in _NULLABLE_IN_EMPTY:
+            assert empty[key] is None, key
+        else:
             assert isinstance(empty[key], typ), key
 
 

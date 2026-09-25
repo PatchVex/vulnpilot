@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from vulnpilot import history
@@ -34,6 +35,10 @@ class VerifyResult:
     # Set only when the baseline run was imported with --scan-date: the date
     # the scanner ran. baseline_date is always the date VulnPilot recorded it.
     baseline_scan_date: Optional[str] = None
+    # History row id of the baseline, and the SHA-256 of the scan file it was
+    # recorded from (None for runs recorded without a scan file hash).
+    baseline_run_id: Optional[int] = None
+    baseline_file_hash: Optional[str] = None
 
     @property
     def summary(self) -> dict:
@@ -101,6 +106,8 @@ def verify_scan(new_findings: List, exclude_run: Optional[int] = None,
 
     result = VerifyResult(baseline_date=baseline["timestamp"][:10],
                           baseline_scan_date=baseline.get("scan_date"),
+                          baseline_run_id=baseline.get("id"),
+                          baseline_file_hash=baseline.get("scan_file_hash"),
                           out_of_scope_hosts=missing_hosts)
     now = datetime.now(timezone.utc)
 
@@ -130,6 +137,44 @@ def verify_scan(new_findings: List, exclude_run: Optional[int] = None,
         lst.sort(key=lambda d: (not d.get("kev"), -(d.get("score") or 0)))
 
     return result
+
+
+def self_comparison_warning(result: VerifyResult, scan_file: Path) -> Optional[str]:
+    """Warning text when the baseline was recorded from this same scan file
+    (identical SHA-256), i.e. verify is comparing the scan with itself; None
+    otherwise. Never changes the baseline — the caller only reports it. Runs
+    recorded without a hash never match."""
+    if not result.baseline_file_hash:
+        return None
+    try:
+        current = history.file_sha256(scan_file)
+    except OSError:
+        return None
+    if current != result.baseline_file_hash:
+        return None
+    run = result.baseline_run_id
+    return (
+        f"WARNING: the baseline (history run {run}) was recorded from this same scan "
+        "file, so this result compares the scan with itself and cannot show anything "
+        "as fixed.\n  Review the run history before relying on it: "
+        f"--exclude-run {run} skips only run {run}, and an earlier recording of the "
+        "same scan (for example by 'analyze') may then become the baseline."
+    )
+
+
+def _finding_label(key: Key, findings_by_key: Dict[Key, object]) -> str:
+    """'port N  CVE  name' for a breach-detail row: enough to tell apart two
+    breaches on the same host with the same severity."""
+    f = findings_by_key.get(key)
+    port = key[2] or "-"
+    if f is None:
+        return f"port {port}"
+    cves = getattr(f, "cve_list", None) or []
+    cve = cves[0] if cves else "-"
+    name = getattr(f, "name", "") or ""
+    if len(name) > 50:
+        name = name[:49] + "…"
+    return f"port {port:<6}{cve:<18}{name}"
 
 
 def _render_governance_section(
@@ -181,10 +226,13 @@ def _render_governance_section(
     return lines
 
 
-def _render_governance_classified(governance: List, use_colour: bool) -> List[str]:
+def _render_governance_classified(governance: List, use_colour: bool,
+                                  findings: Optional[List] = None) -> List[str]:
     """Render governance summary for a List[FindingGovernance] (exceptions-aware).
 
     Called when cli.py has classified findings via exceptions.classify_all().
+    `findings` are the scored findings the governance list was built from; each
+    breach row is followed by its port, CVE and name from them.
     _render_governance_section() (SLAStatus fallback) is left unchanged.
     """
     GREEN  = "\033[92m" if use_colour else ""
@@ -233,6 +281,7 @@ def _render_governance_classified(governance: List, use_colour: bool) -> List[st
 
     breached = [g for g in governance if g.audit_finding or
                 g.governance_status == "breached_approved"]
+    findings_by_key = {_key_from_finding(f): f for f in (findings or [])}
     if breached:
         lines.append(f"\n  {BOLD}Breach detail:{RESET}")
         for g in breached:
@@ -242,7 +291,9 @@ def _render_governance_classified(governance: List, use_colour: bool) -> List[st
                 exc_note = (f"  {GREEN}{g.exception.ticket_ref} ✓ approved"
                             f" (exp {g.exception.expiry_date}){RESET}")
             elif g.governance_status == "breached_expired" and g.exception:
-                exc_note = f"  {RED}{g.exception.ticket_ref} ✗ expired{RESET}"
+                why = (" (unreadable expiry date)"
+                       if getattr(g.exception, "expiry_unreadable", False) else "")
+                exc_note = f"  {RED}{g.exception.ticket_ref} ✗ expired{why}{RESET}"
             else:
                 exc_note = f"  {RED}no exception on file{RESET}"
             lines.append(
@@ -251,13 +302,15 @@ def _render_governance_classified(governance: List, use_colour: bool) -> List[st
                 f"{s.days_open}d open   SLA: {s.sla_days}d"
                 f"{exc_note}"
             )
+            lines.append(f"      {_finding_label(s.finding_key, findings_by_key)}")
 
     return lines
 
 
 def render_verify(result: VerifyResult, sla_statuses: Optional[List] = None,
                   governance: Optional[List] = None,
-                  use_colour: bool = True) -> str:
+                  use_colour: bool = True,
+                  findings: Optional[List] = None) -> str:
     GREEN, RED, YELLOW, RESET, BOLD = "\033[92m", "\033[91m", "\033[93m", "\033[0m", "\033[1m"
     if not use_colour:
         GREEN = RED = YELLOW = RESET = BOLD = ""
@@ -319,7 +372,7 @@ def render_verify(result: VerifyResult, sla_statuses: Optional[List] = None,
     block("+ NEW FINDINGS", result.new, RED)
 
     if governance is not None:
-        lines += _render_governance_classified(governance, use_colour)
+        lines += _render_governance_classified(governance, use_colour, findings)
     elif sla_statuses is not None:
         lines += _render_governance_section(sla_statuses, use_colour)
 

@@ -8,12 +8,6 @@ Get from a Nessus export to a prioritized, audit-ready governance report.
 pip install vulnpilot
 ```
 
-PyPI currently serves 1.1.0. For 1.2.0 (workspaces, `--scan-date`, `--exclude-run`, `--json` on every command), install from the release tag:
-
-```bash
-pip install "git+https://github.com/PatchVex/vulnpilot.git@v1.2.0"
-```
-
 Python 3.10, 3.11, or 3.12 required. `vulnpilot --version` shows what you have.
 
 ## 2. Download threat intelligence feeds

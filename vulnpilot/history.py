@@ -129,7 +129,8 @@ def command_hint() -> str:
     return f" --workspace {WORKSPACE}" if WORKSPACE else ""
 
 
-def _file_sha256(path: Path) -> str:
+def file_sha256(path: Path) -> str:
+    """SHA-256 of a scan file, as stored in scan_file_hash."""
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(65536), b""):
@@ -187,7 +188,7 @@ def record_scan(findings: List, scan_file: Optional[Path] = None,
             (
                 recorded,
                 scan_file.name if scan_file else None,
-                _file_sha256(scan_file) if scan_file and scan_file.exists() else None,
+                file_sha256(scan_file) if scan_file and scan_file.exists() else None,
                 len(findings),
                 kev_count,
                 critical,
@@ -274,9 +275,10 @@ def first_scan_date() -> Optional[str]:
 def load_rows() -> List[dict]:
     """All recorded scans in recording (insertion) order, in a single read.
 
-    Each row: {"id", "timestamp", "findings", "scan_date", "recorded_at"},
-    where "id" is the history table's primary key (the value record_scan()
-    returns). Returns [] if the database is missing or unreadable.
+    Each row: {"id", "timestamp", "findings", "scan_date", "recorded_at",
+    "scan_file_hash"}, where "id" is the history table's primary key (the value
+    record_scan() returns) and "scan_file_hash" is None when the run was
+    recorded without one. Returns [] if the database is missing or unreadable.
     """
     try:
         conn = _connect_existing()
@@ -284,20 +286,22 @@ def load_rows() -> List[dict]:
             return []
         rows = conn.execute(
             "SELECT id, timestamp_utc, findings_json, "
-            f"{_optional_col(conn, 'scan_date')}, {_optional_col(conn, 'recorded_at')}"
+            f"{_optional_col(conn, 'scan_date')}, {_optional_col(conn, 'recorded_at')}, "
+            f"{_optional_col(conn, 'scan_file_hash')}"
             " FROM scan_history ORDER BY id"
         ).fetchall()
         conn.close()
     except sqlite3.Error:
         return []
     out = []
-    for row_id, ts, blob, scan_date, recorded_at in rows:
+    for row_id, ts, blob, scan_date, recorded_at, file_hash in rows:
         try:
             findings = json.loads(blob or "[]")
         except ValueError:
             findings = []
         out.append({"id": row_id, "timestamp": ts, "findings": findings,
-                    "scan_date": scan_date, "recorded_at": recorded_at})
+                    "scan_date": scan_date, "recorded_at": recorded_at,
+                    "scan_file_hash": file_hash})
     return out
 
 

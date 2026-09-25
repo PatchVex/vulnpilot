@@ -14,7 +14,8 @@ plugin_id and port, the later row replaces the earlier one (with a warning).
 Every open finding is classified as:
   within_sla         — SLA not yet breached
   breached_approved  — breached but valid exception on file
-  breached_expired   — exception existed but has expired
+  breached_expired   — exception existed but has expired (or its expiry
+                       date could not be read)
   breached_no_exception — breached with no approval ← audit finding
   unknown            — no history data
 """
@@ -48,6 +49,11 @@ class ExceptionRecord:
     approved_date: Optional[date]
     expiry_date: Optional[date]
     reason: str
+    # A non-blank expiry_date that could not be read (e.g. "31st Dec",
+    # "2026-02-30"). Such an exception is never valid: an unreadable end date
+    # must not turn a time-limited approval into a permanent one. A blank
+    # expiry_date still means "no expiry".
+    expiry_unreadable: bool = False
 
     @property
     def key(self) -> Key:
@@ -96,6 +102,8 @@ class ExceptionRecord:
     def is_valid(self, as_of: Optional[date] = None) -> bool:
         """True if the exception is approved and not yet expired."""
         check = as_of or date.today()
+        if self.expiry_unreadable:
+            return False
         if self.expiry_date and self.expiry_date < check:
             return False
         return bool(self.approver and self.ticket_ref)
@@ -188,9 +196,14 @@ def load_exceptions(path: Path) -> Dict[Key, ExceptionRecord]:
                 for col in ("approved_date", "expiry_date"):
                     raw = row.get(col, "")
                     dates[col] = _parse_date(raw)
-                    if raw and dates[col] is None:
-                        logger.warning("%s line %d: unrecognised %s %r — treated as "
-                                       "not set", path, line, col, raw)
+                expiry_unreadable = bool(row.get("expiry_date")) and dates["expiry_date"] is None
+                if row.get("approved_date") and dates["approved_date"] is None:
+                    logger.warning("%s line %d: unrecognised approved_date %r — treated as "
+                                   "not set", path, line, row.get("approved_date"))
+                if expiry_unreadable:
+                    logger.warning("%s line %d: unrecognised expiry_date %r — the exception "
+                                   "is treated as expired until the date is corrected "
+                                   "(use YYYY-MM-DD)", path, line, row.get("expiry_date"))
                 rec = ExceptionRecord(
                     host=host,
                     plugin_id=plugin_id,
@@ -200,6 +213,7 @@ def load_exceptions(path: Path) -> Dict[Key, ExceptionRecord]:
                     approved_date=dates["approved_date"],
                     expiry_date=dates["expiry_date"],
                     reason=row.get("reason", ""),
+                    expiry_unreadable=expiry_unreadable,
                 )
                 if rec.key in records:
                     # Same host/plugin_id/port twice: the later row wins, as in

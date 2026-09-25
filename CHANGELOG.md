@@ -7,6 +7,51 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.1] — 2026-09-26
+
+Patch release: workflow and output fixes. Scoring, SLA, baseline selection and history recording are
+unchanged.
+
+### Changed
+- **An unreadable exception `expiry_date` now makes the exception invalid.** A non-blank expiry date
+  that cannot be read (e.g. `31st Dec`, or an impossible date such as `2026-02-30`) was previously
+  treated as "no expiry", so a time-limited approval silently became permanent. The finding is now
+  classified `breached_expired` — an audit finding, included in `--export-tickets` and counted by
+  `--fail-on-breach` (exit `2`). The warning now says so, and `verify` marks the row
+  `✗ expired (unreadable expiry date)`. **Action:** only `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY` and
+  `DD-MM-YYYY` are read, as before. Any other non-blank expiry — for example `2026/12/31`, `31.12.2026`,
+  `31-Dec-2026`, a two-digit year such as `31/12/26`, a date with a time such as `2026-12-31T00:00:00`,
+  or a spreadsheet serial number — previously meant "no expiry" and is now treated as expired, so registers
+  containing such dates will start reporting audit findings (and `--fail-on-breach` will exit `2`) until the
+  date is rewritten in a supported format (preferably `YYYY-MM-DD`). A blank `expiry_date` still means no
+  expiry; valid dates, including the documented DD/MM reading of ambiguous dates, are unchanged.
+- `verify` breach detail now shows each breached finding's port, CVE (or `-`) and name under its row, so
+  two breaches on the same host with the same severity can be told apart.
+- `verify` no longer writes ANSI colour codes when stdout is not a terminal (pipes, files, CI logs), matching
+  `analyze`. `--no-colour` works as before.
+- Evidence packs list their metadata (framework, control, generated, source scan file, and for imported
+  scans the scan date and import time) as a Markdown list, so each field renders on its own line instead
+  of running together in one paragraph.
+
+### Added
+- **Self-comparison warning.** When the `verify` baseline was recorded from the same scan file
+  (identical SHA-256), `verify` warns on stderr, naming the baseline's history run ID. This catches
+  `analyze` followed by `verify` on the same scan, and re-running the same `verify` (for example a CI
+  retry), which compares against the run the first `verify` recorded. The warning notes that
+  `--exclude-run` skips only that one run: if the same scan was recorded more than once, an earlier
+  recording of it can become the baseline, so review the run history before relying on the result.
+  Baseline selection and exit codes are unchanged; runs recorded without a file hash never trigger it.
+- `verify --json` output gains `baseline_run_id` (history run used as the baseline) and `history_id` (run
+  this `verify` recorded; `null` if it could not be recorded). Both are appended; existing fields are
+  unchanged. With no actionable findings both are `null`.
+
+### Fixed
+- An unwritable `--export-tickets`, `--evidence-out` or `--html` path (missing directory, directory,
+  permission denied) is now an `ERROR:` on stderr and exit `1` instead of a traceback; `--json` stdout stays
+  empty. As before, the scan is recorded to history before output files are written — the error says which
+  run it was recorded as — and outputs are written one after another, so if a later write fails (e.g. the
+  evidence pack), an earlier one (e.g. the ticket export) may already have been written.
+
 ## [1.2.0] — 2026-09-25
 
 Nessus CSV remains the only supported scanner format.
