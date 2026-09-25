@@ -2,33 +2,41 @@
 
 **Open-source, local-first vulnerability operations for security teams.**
 
-VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST EPSS, and produces a deterministic priority-ranked list of what to fix first. It tracks SLA compliance, manages exceptions, generates audit evidence for SOC 2 and ISO 27001, and verifies remediation — all on your local machine. Your scan data never leaves your network.
+VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST EPSS, and produces a deterministic priority-ranked list of what to fix first. It tracks SLA compliance, manages exceptions, generates audit evidence for SOC 2 and ISO 27001, and verifies remediation — all on your local machine. Your scan data never leaves your machine; the only network access is `vulnpilot update-feeds` downloading the public KEV and EPSS feeds.
 
 [![CI](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/PatchVex/vulnpilot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/PatchVex/vulnpilot/blob/main/LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/vulnpilot.svg)](https://pypistats.org/packages/vulnpilot)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
-[![Status: v1.2 Community](https://img.shields.io/badge/status-v1.2%20community-brightgreen.svg)]()
+[![Repository: v1.2 Community](https://img.shields.io/badge/repository-v1.2%20community-brightgreen.svg)]()
 
 ---
 
 ## Quick Start
 
 ```bash
-pip install vulnpilot
-vulnpilot update-feeds
-vulnpilot analyze scan.csv
+pip install vulnpilot           # see "Getting 1.2.0" below
+vulnpilot update-feeds          # download the public CISA KEV and FIRST EPSS feeds
+vulnpilot analyze scan.csv      # prioritize a Nessus CSV export; records the scan in local history
+vulnpilot verify new_scan.csv   # later: compare your next scan against history (fixed / still open / new)
 ```
 
 VulnPilot downloads the latest public threat intelligence, analyzes your Nessus scan locally, and ranks findings by actual exploitation risk. No API keys. No cloud upload. No account required.
+
+> **Getting 1.2.0:** v1.2.0 is tagged on GitHub; PyPI still serves 1.1.0, so `pip install vulnpilot` installs 1.1.0, which lacks the 1.2.0 features (workspaces, `--scan-date`, `--exclude-run`, wildcard/CIDR exceptions, `--json` on `trend`/`update-feeds`). Until 1.2.0 is on PyPI, install it from the tag:
+>
+> ```bash
+> pip install "git+https://github.com/PatchVex/vulnpilot.git@v1.2.0"
+> ```
 
 ---
 
 ## What's in Community v1.2.0
 
-The current stable release of VulnPilot. Everything below ships in the base `pip install`:
+The current release of VulnPilot (see [Getting 1.2.0](#quick-start) — PyPI still serves 1.1.0). Everything below is implemented in 1.2.0:
 
+- **Nessus CSV analysis** — the supported scanner format today
 - **Composite risk scoring** — KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)
 - **Remediation verification** — `vulnpilot verify` diffs a new scan against history; classifies findings as fixed, still open, or new
 - **SLA compliance tracking** — per-severity deadlines with configurable policy; breach detection with approved/expired/unexcused classification
@@ -39,11 +47,12 @@ The current stable release of VulnPilot. Everything below ships in the base `pip
 - **Posture trend** — `vulnpilot trend` shows total findings, KEV count, and critical count across all recorded scans
 - **JSON output** — `--json` on every command for pipeline integration and `jq` consumption
 - **CI gate** — `--fail-on-breach` exits 2 when unexcused SLA breaches exist
-- **Scanner abstraction** — pluggable parser interface; Qualys, Rapid7, and OpenVAS parsers can be added without touching core logic
+- **Scanner abstraction** — pluggable parser registry; other scanners (e.g. Qualys, Rapid7, OpenVAS) could be added as parsers without touching core logic — none are implemented yet
 - **Local scan history** — every run recorded to `~/.vulnpilot/history.db`; never transmitted
 - **Workspaces** — `--workspace NAME` keeps a separate history per client or environment
 - **Imported scans** — `analyze --scan-date` records an older scan with its stated scan date, clearly marked as imported
 - **Explicit baselines** — `verify --exclude-run ID` stops a scan from being compared against itself after `analyze`
+- **Output hygiene** — reports, evidence packs, JSON and ticket exports carry finding metadata (host, port, plugin ID, CVE, name, synopsis, solution) but not the scanner's raw plugin output or description text
 
 **Docs:** [Quick Start](docs/quickstart.md) · [Evidence](docs/evidence.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
@@ -78,7 +87,7 @@ Security teams often spend hours manually triaging scan results. Your Nessus exp
 
 And when the audit comes — SOC 2, ISO 27001, HIPAA, DPDP — the question changes: *can you prove how you prioritize and remediate?*
 
-VulnPilot answers both, in seconds, using real-world exploit data.
+VulnPilot helps with both: it ranks findings by real-world exploitation data in seconds, and generates technical evidence of your prioritization and remediation process — today as SOC 2 and ISO 27001 evidence packs.
 
 ---
 
@@ -91,7 +100,7 @@ VulnPilot answers both, in seconds, using real-world exploit data.
 | Scrambling for audit evidence | One-command SOC 2 and ISO 27001 evidence packs |
 | Spreadsheets to track SLA compliance | Per-finding SLA tracking against configurable policy |
 | No documented exception process | Exception register with approval tracking and audit flags |
-| Uploading scans to cloud services | Local-first — data never leaves your machine |
+| Uploading scans to cloud services | Local-first — scan data never leaves your machine |
 | Enterprise-only platforms | Open source, MIT licensed — free to use and self-host |
 
 ### CVSS-only prioritization is why triage takes hours
@@ -110,32 +119,53 @@ In the [sample scan](#screenshots) above, CVSS alone flags 4 of 6 findings as Cr
 ## How it works
 
 ```
-vulnpilot analyze scan.csv
+vulnpilot analyze data/sample/sample_nessus.csv
 ```
 
-Output:
+Output (real, from the bundled sample scan with the feeds as of 2026-09-25; scores move as KEV and EPSS change):
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   VulnPilot by PatchVex — Vulnerability Prioritization
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Total findings        : 5,482
-  Unique hosts          : 47
-  Critical              : 142
-  KEV matches           : 19
-  EPSS >= 90%           : 31
+
+  Total findings        : 6
+  Unique hosts          : 4
+
+  Critical              : 4
+  High                 : 0
+  Medium               : 2
+  Low                  : 0
+
+  KEV matches (exploited now) : 4
+  EPSS >= 90% (high risk)    : 4
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  #    Score   Priority      Host              CVE                Finding
-  ───────────────────────────────────────────────────────────────────────
-  1    100.0   CRITICAL NOW  192.168.1.10      CVE-2021-44228     Log4Shell ★KEV
-  2    100.0   CRITICAL NOW  192.168.1.25      CVE-2023-34362     MOVEit SQL Injection ★KEV
-  3    99.8    CRITICAL NOW  192.168.1.15      CVE-2020-1472      Zerologon ★KEV
-  4    99.7    CRITICAL NOW  192.168.1.11      CVE-2021-26084     Confluence RCE ★KEV
-  5    11.5    LOW           192.168.1.10      N/A                SSH Weak Ciphers
+  PRIORITIZED FINDINGS (6)
+  (KEV + EPSS + CVSS composite score)
 
-  ★ KEV = CISA Known Exploited Vulnerability — highest remediation priority
-        based on active exploitation in the wild.
+  #    Score  Priority      Host                  CVE                 Finding
+  ────────────────────────────────────────────────────────────────────────────────────────────────────
+  1    100.0  CRITICAL NOW  192.168.1.10          CVE-2021-44228      Apache Log4Shell RCE ★KEV
+  2    100.0  CRITICAL NOW  192.168.1.25          CVE-2023-34362      MOVEit Transfer SQL Injection ★KEV
+  3    99.8   CRITICAL NOW  192.168.1.15          CVE-2020-1472       Zerologon ★KEV
+  4    99.7   CRITICAL NOW  192.168.1.11          CVE-2021-26084      Confluence Server RCE ★KEV
+  5    11.5   LOW           192.168.1.10          N/A                 SSH Weak Ciphers
+  6    10.4   LOW           192.168.1.10          N/A                 SSL Certificate Expiry Warning
+
+  ★ KEV = CISA Known Exploited — patch these first, no debate.
+
+
+  TOP 10 HOSTS BY AGGREGATE RISK
+
+   1. 192.168.1.10                     score=122.0 [1 KEV] [1 critical]
+   2. 192.168.1.25                     score=100.0 [1 KEV] [1 critical]
+   3. 192.168.1.15                     score=99.8 [1 KEV] [1 critical]
+   4. 192.168.1.11                     score=99.7 [1 KEV] [1 critical]
+
+
+  History run ID: 1
 ```
 
 VulnPilot cross-references your findings against three data sources — all processed locally:
@@ -173,6 +203,8 @@ The evidence pack includes:
 - **SLA compliance and exception register** — when run via `vulnpilot verify`
 
 Output is a clean Markdown file — convert to PDF with your tool of choice and hand it to your auditor.
+
+Evidence packs are technical evidence for your compliance program. VulnPilot does not certify compliance with SOC 2, ISO 27001 or any other framework — your auditor assesses that.
 
 **Currently supported:** SOC 2 (CC7.1), ISO 27001 (A.8.8). DPDP and HIPAA packs are on the roadmap.
 
@@ -238,7 +270,7 @@ vulnpilot verify new_scan.csv --exceptions exceptions.csv \
 
 ## Local Scan History
 
-Every analysis run is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` — on your machine only, never transmitted.
+Every `analyze` run, and every `verify` run that completes its comparison (including one that exits `2` for breaches), is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` (or a workspace's own database) — on your machine only, never transmitted.
 
 Why this matters: SOC 2 Type II audits require evidence that your process operated consistently over a 6–12 month observation period. VulnPilot starts building your evidence trail from your very first scan.
 
@@ -300,10 +332,11 @@ Only public threat intelligence feeds are downloaded. No API keys required. Your
 ## Install
 
 ```bash
-pip install vulnpilot
+pip install vulnpilot                                                   # PyPI: currently 1.1.0
+pip install "git+https://github.com/PatchVex/vulnpilot.git@v1.2.0"     # 1.2.0 from the release tag
 ```
 
-Tested on Python 3.10, 3.11, and 3.12. Zero runtime dependencies — pure stdlib.
+Tested on Python 3.10, 3.11, and 3.12. Zero runtime dependencies — pure stdlib. Check what you have with `vulnpilot --version`.
 
 ---
 
@@ -368,13 +401,46 @@ vulnpilot verify new_scan.csv --workspace acme
 vulnpilot verify new_scan.csv --fail-on-breach
 ```
 
+### Which command takes which option
+
+| Option | `analyze` | `verify` | `trend` | `update-feeds` |
+|---|:-:|:-:|:-:|:-:|
+| `--json` | ✓ | ✓ | ✓ | ✓ |
+| `--workspace NAME` | ✓ | ✓ | ✓ | — |
+| `--scan-date YYYY-MM-DD` | ✓ | — | — | — |
+| `--exclude-run ID` | — | ✓ | — | — |
+| `--sla-config FILE` | accepted, unused | ✓ | — | — |
+| `--exceptions`, `--fail-on-breach`, `--export-tickets` | — | ✓ | — | — |
+| `--evidence`, `--kev`, `--epss` | ✓ | ✓ | — | — |
+| `--html`, `--top-hosts` | ✓ | — | — | — |
+| `--cache DIR` | — | — | — | ✓ |
+
+`--no-colour` is global and goes before the command. `vulnpilot <command> --help` lists every option.
+
+### JSON output
+
+With `--json`, stdout contains only JSON — progress and errors go to stderr — so it is safe to pipe into `jq` or parse in automation. Top-level fields:
+
+| Command | Fields |
+|---|---|
+| `analyze` | `command`, `scan_file`, `total_findings`, `findings`, `history_id`, `scan_date`, `recorded_at` |
+| `verify` | `command`, `scan_file`, `baseline_date`, `summary`, `governance`, `fixed`, `still_open`, `new`, `out_of_scope_hosts`, `findings` |
+| `trend` | `command`, `runs` (each: `timestamp_utc`, `total_findings`, `kev_count`, `critical_count`, `scan_date`) |
+| `update-feeds` | `command`, `cache_dir` |
+
+```bash
+vulnpilot trend --workspace acme --json | jq '.runs[-1]'
+```
+
+Full schemas: [ARCHITECTURE.md § JSON output schema](ARCHITECTURE.md#json-output-schema---json).
+
 ---
 
 ## CI/CD integration
 
 Use `--json` and `--fail-on-breach` to wire VulnPilot into a pipeline.
 
-**How the baseline works.** Every `analyze` and every successful `verify` records the scan to local history. `verify` compares the new scan against the most recent scan already in history, then records the new scan so it becomes the baseline for the next run. The very first scan has nothing to compare against, so seed history once with `analyze`; `verify` exits `1` if no earlier scan exists.
+**How the baseline works.** Every `analyze`, and every `verify` that completes its comparison (exit `0` or `2`), records the scan to local history. `verify` compares the new scan against the most recent scan already in history, then records the new scan so it becomes the baseline for the next run. The very first scan has nothing to compare against, so seed history once with `analyze`; `verify` exits `1` if no earlier scan exists.
 
 ```bash
 # Once, on the first scan: seed history
@@ -452,8 +518,9 @@ The weighting model is intentionally transparent and may evolve based on communi
 ## Privacy by design
 
 - Scan data processed entirely on your local machine
+- Network access only for `vulnpilot update-feeds`, which downloads the public CISA KEV and FIRST EPSS feeds; `analyze`, `verify` and `trend` make no network requests
 - No account required
-- No cloud upload, ever
+- No cloud upload of scan data, ever
 - No telemetry or analytics
 - No API keys required
 - Works air-gapped after initial feed download
@@ -536,7 +603,7 @@ Automated feed synchronization via GitHub Actions is not currently implemented. 
 **v1.1.0 — Released ✅**
 - [x] Actionable remediation export — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv`
 
-**v1.2.0 — Released ✅**
+**v1.2.0 — Tagged ✅** (git tag `v1.2.0`; not yet published to PyPI)
 - [x] CLI reads scans through the scanner registry (`vulnpilot.parser.parse`)
 - [x] `--workspace` — separate history per client or environment
 - [x] `analyze --scan-date` — import older scans, marked as imported
