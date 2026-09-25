@@ -9,7 +9,7 @@ VulnPilot takes a Nessus export, cross-references it against CISA KEV and FIRST 
 [![Downloads](https://img.shields.io/pypi/dm/vulnpilot.svg)](https://pypistats.org/packages/vulnpilot)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![PyPI version](https://img.shields.io/pypi/v/vulnpilot.svg)](https://pypi.org/project/vulnpilot/)
-[![Status: v1.1 Community](https://img.shields.io/badge/status-v1.1%20community-brightgreen.svg)]()
+[![Status: v1.2 Community](https://img.shields.io/badge/status-v1.2%20community-brightgreen.svg)]()
 
 ---
 
@@ -25,22 +25,25 @@ VulnPilot downloads the latest public threat intelligence, analyzes your Nessus 
 
 ---
 
-## What's in Community v1.1.0
+## What's in Community v1.2.0
 
 The current stable release of VulnPilot. Everything below ships in the base `pip install`:
 
 - **Composite risk scoring** — KEV (40%) + EPSS (35%) + CVSS (15%) + Severity (10%)
 - **Remediation verification** — `vulnpilot verify` diffs a new scan against history; classifies findings as fixed, still open, or new
 - **SLA compliance tracking** — per-severity deadlines with configurable policy; breach detection with approved/expired/unexcused classification
-- **Exception register** — CSV-based approval tracking; exceptions surface as audit findings when expired or missing
+- **Exception register** — CSV-based approval tracking with `*` wildcards and CIDR ranges; exceptions surface as audit findings when expired or missing
 - **Actionable remediation ticket export** — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv` writes governance-classified audit findings to a ticket-ready file
 - **Audit evidence packs** — one-command Markdown output mapped to SOC 2 CC7.1 and ISO 27001 A.8.8
 - **HTML report** — self-contained, shareable report with executive summary and prioritized findings table
 - **Posture trend** — `vulnpilot trend` shows total findings, KEV count, and critical count across all recorded scans
-- **JSON output** — `--json` on `analyze` and `verify` for pipeline integration and `jq` consumption
+- **JSON output** — `--json` on every command for pipeline integration and `jq` consumption
 - **CI gate** — `--fail-on-breach` exits 2 when unexcused SLA breaches exist
 - **Scanner abstraction** — pluggable parser interface; Qualys, Rapid7, and OpenVAS parsers can be added without touching core logic
 - **Local scan history** — every run recorded to `~/.vulnpilot/history.db`; never transmitted
+- **Workspaces** — `--workspace NAME` keeps a separate history per client or environment
+- **Imported scans** — `analyze --scan-date` records an older scan with its stated scan date, clearly marked as imported
+- **Explicit baselines** — `verify --exclude-run ID` stops a scan from being compared against itself after `analyze`
 
 **Docs:** [Quick Start](docs/quickstart.md) · [Evidence](docs/evidence.md) · [Trend & History](docs/trend.md) · [Scoring](docs/scoring.md) · [FAQ](docs/faq.md)
 
@@ -237,9 +240,33 @@ vulnpilot verify new_scan.csv --exceptions exceptions.csv \
 
 Every analysis run is automatically recorded to a local SQLite database at `~/.vulnpilot/history.db` — on your machine only, never transmitted.
 
-Why this matters: SOC 2 Type II audits require evidence that your process operated consistently over a 6–12 month observation period. That history cannot be recreated retroactively. VulnPilot starts building your evidence trail from your very first scan.
+Why this matters: SOC 2 Type II audits require evidence that your process operated consistently over a 6–12 month observation period. VulnPilot starts building your evidence trail from your very first scan.
+
+**Importing older scans.** To load scans that ran before you started using VulnPilot, give the date the scanner actually ran:
+
+```bash
+vulnpilot analyze q1_scan.csv --scan-date 2026-01-15
+```
+
+The import is recorded as a new run at the time you import it; the scan date is stored alongside it and never replaces the recording time. So:
+
+- History order, `verify` baselines and SLA clocks follow recording order. An import is the most recent run until the next one, so the next `verify` compares against it (pass its run ID to `--exclude-run` if you don't want that), and an imported finding's SLA clock starts when it was imported, not on the scan date.
+- `vulnpilot trend` lists the import on the day it was recorded and marks it `imported; scan date …`.
+- Evidence packs state the scan date and the import time separately, and count how many runs were imported.
+
+An import is not a substitute for records kept at the time; your auditor decides how much weight to give it. `--scan-date` must be `YYYY-MM-DD` and not in the future; it is available on `analyze` only.
 
 Use `vulnpilot verify` to diff a new scan against history, and `vulnpilot trend` to view your posture over time.
+
+**Separate history per client.** If you scan more than one client or environment, give each its own workspace so their scans are never compared with each other:
+
+```bash
+vulnpilot analyze acme_scan.csv --workspace acme
+vulnpilot verify acme_new_scan.csv --workspace acme --sla-config clients/acme_sla.yaml
+vulnpilot trend --workspace acme
+```
+
+Each workspace keeps its own history at `~/.vulnpilot/workspaces/<name>/history.db`; without `--workspace` the shared `~/.vulnpilot/history.db` is used as before. Workspace names are case-insensitive — `Acme` and `acme` are the same workspace. History run IDs (for `verify --exclude-run`) are numbered per workspace.
 
 ---
 
@@ -296,7 +323,7 @@ vulnpilot analyze scan.csv --evidence soc2
 vulnpilot analyze scan.csv --evidence iso27001
 
 # Verify remediation against your previous scan
-# Requires at least one prior 'vulnpilot analyze' run to seed history
+# Requires at least one earlier scan in history (seed it once with 'vulnpilot analyze')
 vulnpilot verify new_scan.csv
 
 # Verify with exception register
@@ -327,12 +354,17 @@ vulnpilot --no-colour analyze scan.csv
 # Output findings as JSON (suppresses terminal output)
 vulnpilot analyze scan.csv --json
 vulnpilot verify new_scan.csv --json
+vulnpilot trend --json
+vulnpilot update-feeds --json   # progress messages go to stderr
 
 # Use a per-client SLA policy instead of the default ~/.vulnpilot/sla.yaml
 vulnpilot verify new_scan.csv --sla-config clients/acme_sla.yaml
 
+# Keep each client's scan history separate
+vulnpilot verify new_scan.csv --workspace acme
+
 # Exit 2 if audit findings exist — use as a CI pipeline gate
-# Exit 0 = clean, 1 = tool error, 2 = breach found
+# Exit 0 = clean, 1 = tool error (including a mistyped flag), 2 = breach found
 vulnpilot verify new_scan.csv --fail-on-breach
 ```
 
@@ -342,16 +374,26 @@ vulnpilot verify new_scan.csv --fail-on-breach
 
 Use `--json` and `--fail-on-breach` to wire VulnPilot into a pipeline.
 
-`verify` requires at least one prior `vulnpilot analyze` run to have seeded the history database.
+**How the baseline works.** Every `analyze` and every successful `verify` records the scan to local history. `verify` compares the new scan against the most recent scan already in history, then records the new scan so it becomes the baseline for the next run. The very first scan has nothing to compare against, so seed history once with `analyze`; `verify` exits `1` if no earlier scan exists.
 
 ```bash
-# Step 1 — analyze the new scan; emit JSON for downstream consumers
-vulnpilot analyze new_scan.csv --json | tee vulnpilot-analyze.json
+# Once, on the first scan: seed history
+vulnpilot analyze first_scan.csv
 
-# Step 2 — verify remediation; emit JSON and fail the pipeline on audit findings
-# Exit 0 = clean, 1 = tool error, 2 = breach found (SLA breach with no valid exception)
-vulnpilot verify new_scan.csv --json --fail-on-breach | tee vulnpilot-verify.json
+# Every later scan: verify it directly — verify records the run itself.
+# Exit 0 = clean, 1 = tool error / no baseline, 2 = breach found (SLA breach with no valid exception)
+vulnpilot verify new_scan.csv --json --fail-on-breach > vulnpilot-verify.json
 ```
+
+Do not run `analyze` and then `verify` on the same scan without telling `verify` — the scan would be recorded by `analyze` and then compared against itself. If you need `analyze` output for the same scan first, pass the history run ID it reports to `--exclude-run`:
+
+```bash
+vulnpilot analyze new_scan.csv --json > vulnpilot-analyze.json
+RUN_ID="$(jq -r '.history_id' vulnpilot-analyze.json)"
+vulnpilot verify new_scan.csv --exclude-run "$RUN_ID" --json --fail-on-breach > vulnpilot-verify.json
+```
+
+Writing to files instead of piping through `tee` keeps `verify`'s exit code as the step's exit code. If `analyze` could not record the scan, `history_id` is `null` and `verify` rejects it with exit `1`.
 
 Per-client SLA policies work with both flags:
 
@@ -415,7 +457,7 @@ The weighting model is intentionally transparent and may evolve based on communi
 - No telemetry or analytics
 - No API keys required
 - Works air-gapped after initial feed download
-- Scan history stored locally at `~/.vulnpilot/history.db` — your machine only, delete it anytime
+- Scan history stored locally at `~/.vulnpilot/history.db` — your machine only, delete it anytime. New history files are created readable by your user only (on Linux/macOS)
 - Open source — inspect every line of code
 
 ---
@@ -433,7 +475,7 @@ Feeds are cached at `~/.vulnpilot/feeds/` on your machine. No API keys required.
 vulnpilot update-feeds
 ```
 
-The GitHub repository also runs an automated daily feed sync via GitHub Actions.
+Automated feed synchronization via GitHub Actions is not currently implemented. Run `vulnpilot update-feeds` yourself whenever you want fresh data (for example from a scheduled job on your own machine).
 
 ---
 
@@ -458,7 +500,7 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 - [x] FIRST EPSS enrichment
 - [x] Composite risk scoring
 - [x] Prioritized terminal output
-- [x] GitHub Actions daily feed automation
+- [ ] GitHub Actions daily feed automation — shipped in v0.1.0 but never worked (every run failed and nothing used the repository copy); removed, not currently implemented
 
 **v0.2.0 — Released ✅**
 - [x] HTML report export
@@ -493,6 +535,14 @@ The GitHub repository also runs an automated daily feed sync via GitHub Actions.
 
 **v1.1.0 — Released ✅**
 - [x] Actionable remediation export — `verify --export-tickets FILE --ticket-format generic-csv|json|jira-csv`
+
+**v1.2.0 — Released ✅**
+- [x] CLI reads scans through the scanner registry (`vulnpilot.parser.parse`)
+- [x] `--workspace` — separate history per client or environment
+- [x] `analyze --scan-date` — import older scans, marked as imported
+- [x] `verify --exclude-run` — explicit baseline exclusion; `analyze` reports the history run ID
+- [x] Wildcard and CIDR exception matching
+- [x] `--json` on every command; JSON-only stdout; usage errors exit `1`
 
 **Later**
 - [ ] DPDP and HIPAA evidence packs

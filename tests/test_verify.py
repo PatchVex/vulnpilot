@@ -1,4 +1,6 @@
 import json
+import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -173,3 +175,103 @@ def test_render_verify_governance_expired_exception_shown():
     output = render_verify(_empty_result(), governance=gov, use_colour=False)
     assert "JIRA-OLD" in output
     assert "expired"  in output
+
+
+SAMPLE_AFTER = Path(__file__).parent.parent / "data" / "sample" / "sample_nessus_after.csv"
+
+
+def _scored_file(path):
+    findings = parse_nessus_csv(path)
+    for f in findings:
+        f.kev_match = False
+        f.epss_score = 0.01
+    return score_all(findings)
+
+
+def test_verify_exclude_run_skips_only_that_row(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    run_b = history.record_scan(_scored_file(SAMPLE_AFTER), scan_file=SAMPLE_AFTER)
+    result = verify_scan(_scored_file(SAMPLE_AFTER), exclude_run=run_b)
+    assert any(d["cve"] == "CVE-2021-44228" for d in result.fixed)
+    assert any(d["cve"] == "CVE-2023-48795" for d in result.new)
+
+
+def test_verify_exclude_run_does_not_skip_identical_content(tmp_path, monkeypatch):
+    # A, B, B again: excluding the latest B must compare against the earlier B,
+    # not skip every row with the same content and fall back to A.
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    history.record_scan(_scored_file(SAMPLE_AFTER), scan_file=SAMPLE_AFTER)
+    run_b2 = history.record_scan(_scored_file(SAMPLE_AFTER), scan_file=SAMPLE_AFTER)
+    result = verify_scan(_scored_file(SAMPLE_AFTER), exclude_run=run_b2)
+    assert result.summary == {"fixed": 0, "still_open": 5, "new": 0,
+                              "out_of_scope_hosts": 0}
+
+
+def test_verify_exclude_run_only_row_raises_no_baseline(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    run_a = history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    with pytest.raises(RuntimeError, match="No baseline available"):
+        verify_scan(_scored_file(SAMPLE), exclude_run=run_a)
+
+
+def test_verify_exclude_run_unknown_id_raises(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    with pytest.raises(ValueError, match="no recorded history run"):
+        verify_scan(_scored_file(SAMPLE), exclude_run=999)
+
+
+def test_verify_default_uses_latest_row_as_in_previous_release(tmp_path, monkeypatch):
+    # Without --exclude-run the latest row is the baseline, even when its
+    # content is identical to the scan being verified (a genuine re-scan).
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    history.record_scan(_scored_file(SAMPLE_AFTER), scan_file=SAMPLE_AFTER)
+    result = verify_scan(_scored_file(SAMPLE_AFTER))
+    assert result.summary["fixed"] == 0 and result.summary["new"] == 0
+
+
+def test_verify_still_open_days_from_earliest_sighting(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored(), scan_file=SAMPLE)
+    conn = sqlite3.connect(tmp_path / "history.db")
+    old = (datetime.now(timezone.utc) - timedelta(days=12)).isoformat()
+    conn.execute("UPDATE scan_history SET timestamp_utc = ?", (old,))
+    conn.commit()
+    conn.close()
+    history.record_scan(_scored())
+    result = verify_scan(_scored())
+    assert result.still_open and all(d["days_open"] == 12 for d in result.still_open)
+
+
+
+def test_cli_verify_reads_history_once(tmp_path, monkeypatch, capsys):
+    import argparse
+    from vulnpilot import cli
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    calls = []
+    real = history.load_rows
+    monkeypatch.setattr(history, "load_rows", lambda: calls.append(1) or real())
+    args = argparse.Namespace(
+        csv=str(SAMPLE_AFTER), kev=None, epss=None, no_colour=True, evidence=None,
+        evidence_out=None, exceptions=None, json=True, sla_config=None,
+        fail_on_breach=False, export_tickets=None, ticket_format="generic-csv",
+        exclude_run=None)
+    assert cli.cmd_verify(args) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert len(calls) == 1  # baseline selection and SLA share one read
+    assert data["summary"]["fixed"] == 1 and data["governance"]["unknown"] == 1
+
+
+def test_verify_scan_with_preloaded_rows_matches_loading_itself(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "history.db")
+    history.record_scan(_scored_file(SAMPLE), scan_file=SAMPLE)
+    run_b = history.record_scan(_scored_file(SAMPLE_AFTER), scan_file=SAMPLE_AFTER)
+    rows = history.load_rows()
+    for kw in ({}, {"exclude_run": run_b}):
+        a = verify_scan(_scored_file(SAMPLE_AFTER), **kw)
+        b = verify_scan(_scored_file(SAMPLE_AFTER), rows=rows, **kw)
+        assert vars(a) == vars(b)

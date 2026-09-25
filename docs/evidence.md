@@ -84,6 +84,35 @@ sufficient — auditors want evidence of consistent operation. Run
 evidence packs at least quarterly. The `vulnpilot trend` output documents
 your history across the observation period.
 
+## Exception register format
+
+A CSV with a header row (a UTF-8 BOM from Excel is fine):
+
+```csv
+host,plugin_id,port,ticket_ref,approver,approved_date,expiry_date,reason
+192.168.1.11,57608,8090,JIRA-4521,CISO,2026-07-01,2026-12-31,vendor patch unavailable
+*,33850,*,JIRA-4600,CISO,2026-07-01,2026-09-30,Log4j fix rolling out fleet-wide
+10.0.0.0/24,*,*,JIRA-4601,CISO,2026-07-01,2026-08-31,lab subnet being decommissioned
+```
+
+- `host`, `plugin_id` and `port` are required. Each can be `*` to match any
+  value, and `host` can be a CIDR range such as `10.0.0.0/24` (matches IP
+  hosts only, not hostnames).
+- An exact row always wins over a pattern. Otherwise the most specific
+  matching row applies — an exact field counts 2, a CIDR host 1, `*` 0. Between
+  CIDR rows that score the same, the narrower network wins (`10.1.0.0/16` over
+  `10.0.0.0/8`); any remaining tie goes to the row that appears first in the file.
+- If two rows have the same `host`, `plugin_id` and `port`, the later row
+  replaces the earlier one and a warning names both lines — so appending a row
+  is how you renew or end an exception.
+- A row that matches everything (`*,*,*` or `0.0.0.0/0,*,*`) is rejected: a
+  blanket exception is not evidence of risk acceptance.
+- An exception is valid when it has a `ticket_ref` and `approver` and its
+  `expiry_date` has not passed. Dates can be `YYYY-MM-DD`, `DD/MM/YYYY`,
+  `MM/DD/YYYY` or `DD-MM-YYYY`; an ambiguous date such as `03/04/2026` is
+  read as DD/MM (3 April), so prefer `YYYY-MM-DD`.
+- A row may leave off trailing optional columns (such as `reason`); they are treated as empty. A row missing `host`, `plugin_id` or `port`, or with more fields than the header, is skipped with a warning naming the line.
+
 ## Supported frameworks
 
 | Framework | Control | Status |

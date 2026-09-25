@@ -188,3 +188,70 @@ class TestSlaConfig:
         assert result["critical"] == 3
         assert result["high"] == DEFAULT_SLA["high"]
         assert result["medium"] == DEFAULT_SLA["medium"]
+
+
+class TestJsonDoesNotSkipOutputFiles:
+    def test_analyze_json_still_writes_html(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+        out = tmp_path / "report.html"
+        rc = cmd_analyze(TestAnalyzeJson()._args(html=str(out)))
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert out.exists()
+        json.loads(captured.out)  # stdout stays pure JSON
+        assert "HTML report saved" in captured.err
+
+    def test_verify_json_still_writes_evidence(self, capsys, tmp_path, monkeypatch):
+        args, db = TestVerifyJson()._args(
+            tmp_path, evidence="soc2", evidence_out=str(tmp_path / "ev.md"))
+        monkeypatch.setattr(history, "DB_PATH", db)
+        rc = cmd_verify(args)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert (tmp_path / "ev.md").exists()
+        json.loads(captured.out)
+        assert "Evidence pack" in captured.err
+
+    def test_verify_missing_exceptions_file_is_an_error(self, capsys, tmp_path, monkeypatch):
+        args, db = TestVerifyJson()._args(
+            tmp_path, exceptions=str(tmp_path / "nope.csv"))
+        monkeypatch.setattr(history, "DB_PATH", db)
+        assert cmd_verify(args) == 1
+        assert "Exceptions file not found" in capsys.readouterr().err
+
+    def test_verify_invalid_exceptions_file_is_an_error(self, capsys, tmp_path, monkeypatch):
+        bad = tmp_path / "bad.csv"
+        bad.write_text("hostname,ticket\n10.0.0.1,JIRA-1\n")
+        args, db = TestVerifyJson()._args(tmp_path, exceptions=str(bad))
+        monkeypatch.setattr(history, "DB_PATH", db)
+        assert cmd_verify(args) == 1
+        assert "missing required column" in capsys.readouterr().err
+
+
+class TestAnalyzeNoActionableFindings:
+    CSV = ("Plugin ID,CVE,Risk,Host,Protocol,Port,Name\n"
+           "19506,,None,10.0.0.1,tcp,0,Nessus Scan Information\n")
+
+    def test_json_stdout_is_valid_json_and_diagnostic_on_stderr(self, capsys, tmp_path,
+                                                                monkeypatch):
+        monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+        info_only = tmp_path / "info.csv"
+        info_only.write_text(self.CSV)
+        rc = cmd_analyze(TestAnalyzeJson()._args(csv=str(info_only)))
+        captured = capsys.readouterr()
+        assert rc == 0
+        data = json.loads(captured.out)
+        assert data == {"command": "analyze", "scan_file": str(info_only),
+                        "total_findings": 0, "findings": [], "history_id": None,
+                        "scan_date": None, "recorded_at": None}
+        assert "No actionable findings" in captured.err
+
+    def test_terminal_mode_unchanged(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+        info_only = tmp_path / "info.csv"
+        info_only.write_text(self.CSV)
+        rc = cmd_analyze(TestAnalyzeJson()._args(csv=str(info_only), json=False))
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert captured.out == "\n  No actionable findings in this CSV.\n"
+        assert captured.err == ""

@@ -6,8 +6,6 @@ but "here's proof it was fixed."
 
 from __future__ import annotations
 
-import json
-import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -33,6 +31,9 @@ class VerifyResult:
     still_open: List[dict] = field(default_factory=list)   # in both (+days_open)
     new: List[dict] = field(default_factory=list)          # in new only
     out_of_scope_hosts: List[str] = field(default_factory=list)
+    # Set only when the baseline run was imported with --scan-date: the date
+    # the scanner ran. baseline_date is always the date VulnPilot recorded it.
+    baseline_scan_date: Optional[str] = None
 
     @property
     def summary(self) -> dict:
@@ -44,36 +45,43 @@ class VerifyResult:
         }
 
 
-def _load_history_rows() -> List[dict]:
-    try:
-        conn = sqlite3.connect(history.DB_PATH)
-        rows = conn.execute(
-            "SELECT timestamp_utc, findings_json FROM scan_history ORDER BY timestamp_utc"
-        ).fetchall()
-        conn.close()
-    except sqlite3.Error:
-        return []
-    return [{"timestamp": r[0], "findings": json.loads(r[1] or "[]")} for r in rows]
+def verify_scan(new_findings: List, exclude_run: Optional[int] = None,
+                rows: Optional[List[dict]] = None) -> VerifyResult:
+    """Diff new (scored) findings against the most recently recorded run
+    (highest history id), whatever its stated scan date.
 
+    `exclude_run` is a history row id (as returned by history.record_scan) that
+    must not be used as the baseline — e.g. the row `analyze` just recorded for
+    this same scan. Only that exact row is excluded.
 
-def _first_seen(key: Key, rows: List[dict]) -> Optional[str]:
-    for row in rows:  # rows are chronological
-        for d in row["findings"]:
-            if _key_from_dict(d) == key:
-                return row["timestamp"]
-    return None
+    `rows` is history as returned by history.load_rows(); it is loaded here if
+    not given (callers that also compute SLA pass it to both to read history once).
 
-
-def verify_scan(new_findings: List) -> VerifyResult:
-    """Diff new (scored) findings against the most recent recorded scan."""
-    rows = _load_history_rows()
+    Raises ValueError if `exclude_run` is not a recorded run, and RuntimeError
+    if no baseline is available.
+    """
+    if rows is None:
+        rows = history.load_rows()
     if not rows:
         raise RuntimeError(
-            "No scan history found. Run 'vulnpilot analyze <scan.csv>' at least "
-            "once before using verify."
+            "No scan history found. Run 'vulnpilot analyze <scan.csv>"
+            f"{history.command_hint()}' at least once before using verify."
         )
 
-    baseline = rows[-1]
+    candidates = rows
+    if exclude_run is not None:
+        if not any(r["id"] == exclude_run for r in rows):
+            raise ValueError(f"--exclude-run {exclude_run}: no recorded history run "
+                             "with that ID.")
+        candidates = [r for r in rows if r["id"] != exclude_run]
+        if not candidates:
+            raise RuntimeError(
+                f"No baseline available: history run {exclude_run} is the only "
+                "recorded scan and it is excluded. Verify needs an earlier scan "
+                "to compare against."
+            )
+    baseline = candidates[-1]
+    first_seen = history.first_seen_map(rows)
     old_by_key: Dict[Key, dict] = {
         _key_from_dict(d): d for d in baseline["findings"]
     }
@@ -92,6 +100,7 @@ def verify_scan(new_findings: List) -> VerifyResult:
     missing_hosts = sorted(old_hosts - new_hosts)
 
     result = VerifyResult(baseline_date=baseline["timestamp"][:10],
+                          baseline_scan_date=baseline.get("scan_date"),
                           out_of_scope_hosts=missing_hosts)
     now = datetime.now(timezone.utc)
 
@@ -99,7 +108,7 @@ def verify_scan(new_findings: List) -> VerifyResult:
         if key[0] in missing_hosts:
             continue  # host absent from new scan — cannot claim fixed
         if key in new_by_key:
-            first = _first_seen(key, rows)
+            first = first_seen.get(key)
             days = None
             if first:
                 try:
@@ -261,7 +270,9 @@ def render_verify(result: VerifyResult, sla_statuses: Optional[List] = None,
         "",
         "━" * 60,
         f"  {BOLD}VulnPilot — Remediation Verification{RESET}",
-        f"  Baseline scan: {result.baseline_date}",
+        f"  Baseline scan: {result.baseline_date}"
+        + (f" (imported; scan date {result.baseline_scan_date})"
+           if result.baseline_scan_date else ""),
         "━" * 60,
         f"  Baseline findings (in scope) : {in_scope_baseline}",
         f"  {GREEN}✓ Verified fixed{RESET}             : {s['fixed']} ({pct}%)",

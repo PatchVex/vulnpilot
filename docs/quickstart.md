@@ -133,7 +133,7 @@ Use `--fail-on-breach` to make `verify` a hard pipeline gate:
 ```bash
 vulnpilot verify new_scan.csv --fail-on-breach
 # Exit 0 = clean (no unexcused SLA breaches)
-# Exit 1 = tool error
+# Exit 1 = tool error (including invalid flags or arguments)
 # Exit 2 = audit findings exist (breach with no valid exception)
 ```
 
@@ -144,8 +144,11 @@ vulnpilot verify new_scan.csv \
   --sla-config clients/acme_sla.yaml \
   --exceptions clients/acme_exceptions.csv \
   --fail-on-breach \
-  --json | tee vulnpilot-verify.json
+  --json > vulnpilot-verify.json
 ```
+
+Redirecting to a file (rather than piping through `tee`) keeps `verify`'s
+exit code as the step's exit code.
 
 ---
 

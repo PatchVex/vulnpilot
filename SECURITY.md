@@ -25,8 +25,7 @@ You will receive a response within 48 hours. We will work with you to understand
 ## Scope
 
 - VulnPilot CLI (`pip install vulnpilot`)
-- GitHub Actions feed automation
-- Feed endpoints at github.com/PatchVex/vulnpilot
+- The github.com/PatchVex/vulnpilot repository and its CI workflow
 
 ## Out of scope
 

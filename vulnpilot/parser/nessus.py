@@ -6,7 +6,7 @@ from __future__ import annotations
 import csv
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from vulnpilot.parser.base import Finding, Scanner
 
@@ -37,22 +37,28 @@ def _safe_float(value: str):
         return None
 
 
+def _read_lines(path: Path) -> List[str]:
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        return fh.read().splitlines()
+
+
+def _find_header(lines: List[str]) -> Optional[int]:
+    """Index of the Nessus header row (any preamble before it is skipped)."""
+    for i, line in enumerate(lines):
+        lower = line.lower()
+        if "plugin id" in lower and "risk" in lower and "host" in lower:
+            return i
+    return None
+
+
 def parse_nessus_csv(path: Path) -> List[Finding]:
     """Parse a Nessus CSV export. Kept for backward compatibility; prefer parse()."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"CSV not found: {path}")
 
-    with open(path, newline="", encoding="utf-8-sig") as fh:
-        raw = fh.read()
-
-    lines = raw.splitlines()
-    header_idx = None
-    for i, line in enumerate(lines):
-        lower = line.lower()
-        if "plugin id" in lower and "risk" in lower and "host" in lower:
-            header_idx = i
-            break
+    lines = _read_lines(path)
+    header_idx = _find_header(lines)
 
     if header_idx is None:
         raise ValueError(
@@ -106,12 +112,11 @@ class NessusScanner(Scanner):
     """Scanner plugin for Nessus CSV exports."""
 
     def accepts(self, path: Path) -> bool:
-        if path.suffix.lower() != ".csv":
-            return False
+        # Same file reading and header search as parse_nessus_csv(), so every
+        # file that parser can read is accepted (any extension, any preamble
+        # length). A decode error propagates exactly as it would from parsing.
         try:
-            with open(path, newline="", encoding="utf-8-sig") as fh:
-                sample = fh.read(4096).lower()
-            return "plugin id" in sample and "risk" in sample and "host" in sample
+            return _find_header(_read_lines(path)) is not None
         except OSError:
             return False
 

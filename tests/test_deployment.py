@@ -64,12 +64,14 @@ def test_docs_exist():
         assert (ROOT / "docs" / f).exists(), f"missing docs/{f}"
 
 
-def test_package_builds():
+def test_package_builds(tmp_path):
     """python -m build must succeed (catches packaging config errors)."""
     import importlib.util
     if importlib.util.find_spec("build") is None:
         pytest.skip("'build' package not installed")
-    r = subprocess.run([sys.executable, "-m", "build", "--wheel", "--no-isolation"],
+    # Build into tmp_path so the released artifacts in dist/ are never overwritten.
+    r = subprocess.run([sys.executable, "-m", "build", "--wheel", "--no-isolation",
+                        "--outdir", str(tmp_path)],
                        capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0, r.stderr[-2000:]
 

@@ -47,9 +47,9 @@ are flagged as audit findings. Format details in
 `data/sample/sample_exceptions.csv`.
 
 **Can I use this in CI?**
-Yes — `--no-colour` gives pipeline-friendly output, and `verify`/`trend`
-return proper exit codes. A dedicated SLA-breach exit-code gate is on the
-roadmap.
+Yes — every command has `--json` and `--no-colour`. `verify --fail-on-breach`
+is the SLA-breach gate: exit `0` = clean, `1` = tool error (including an
+invalid flag), `2` = audit findings. See the CI/CD section of the README.
 
 **Found a bug or want a framework added?**
 Open an issue: https://github.com/PatchVex/vulnpilot/issues

@@ -4,6 +4,13 @@ Input: --exceptions exceptions.csv
 Columns: host, plugin_id, port, ticket_ref, approver,
          approved_date, expiry_date, reason
 
+host, plugin_id and port may be "*" (any value); host may also be a CIDR
+range (e.g. 10.0.0.0/24). An exact match wins over a pattern; otherwise the
+most specific matching row applies — between CIDR rows of equal specificity
+the narrower network wins, and remaining ties go to the earlier row. A row
+that matches everything is rejected. If two rows have the same host,
+plugin_id and port, the later row replaces the earlier one (with a warning).
+
 Every open finding is classified as:
   within_sla         — SLA not yet breached
   breached_approved  — breached but valid exception on file
@@ -15,14 +22,20 @@ Every open finding is classified as:
 from __future__ import annotations
 
 import csv
+import ipaddress
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
+from functools import cached_property
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 from vulnpilot.sla import SLAStatus
 
+logger = logging.getLogger(__name__)
+
 Key = Tuple[str, str, str]  # (host, plugin_id, port)
+WILDCARD = "*"
 
 
 @dataclass
@@ -39,6 +52,46 @@ class ExceptionRecord:
     @property
     def key(self) -> Key:
         return (self.host, self.plugin_id, self.port)
+
+    @property
+    def is_pattern(self) -> bool:
+        return (WILDCARD in self.key) or ("/" in self.host)
+
+    @cached_property
+    def network(self) -> Optional[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        """The CIDR host as a network (parsed once). None for other hosts, and
+        for an invalid CIDR — such a record never matches. load_exceptions()
+        already skips invalid CIDR rows; this covers records built directly."""
+        if "/" not in self.host:
+            return None
+        try:
+            return ipaddress.ip_network(self.host, strict=False)
+        except ValueError:
+            return None
+
+    def specificity(self) -> Tuple[int, int]:
+        """Higher is more specific. First by field: exact field 2, CIDR host 1,
+        wildcard 0 — so exact > CIDR > wildcard, and a row naming a plugin beats
+        a host-wide one. Then, only between CIDR rows with the same field score,
+        by prefix length (a narrower network wins). A matching IPv4 and IPv6
+        network can never both match one host, so prefixes compare within a family."""
+        net = self.network
+        host = 1 if net is not None else 0 if self.host == WILDCARD else 2
+        fields = host + sum(0 if v == WILDCARD else 2 for v in (self.plugin_id, self.port))
+        return (fields, net.prefixlen if net is not None else 0)
+
+    def matches(self, key: Key) -> bool:
+        host, plugin_id, port = key
+        if self.plugin_id not in (WILDCARD, plugin_id) or self.port not in (WILDCARD, port):
+            return False
+        if self.host in (WILDCARD, host):
+            return True
+        if self.network is not None:
+            try:
+                return ipaddress.ip_address(host) in self.network
+            except ValueError:
+                return False  # finding host is a hostname, not an IP
+        return False
 
     def is_valid(self, as_of: Optional[date] = None) -> bool:
         """True if the exception is approved and not yet expired."""
@@ -71,36 +124,108 @@ def _parse_date(val: str) -> Optional[date]:
     return None
 
 
+REQUIRED_COLUMNS = ("host", "plugin_id", "port")
+
+
 def load_exceptions(path: Path) -> Dict[Key, ExceptionRecord]:
-    """Load exceptions CSV. Returns empty dict if file missing or malformed."""
+    """Load exceptions CSV. Returns empty dict if the file does not exist.
+
+    Accepts a UTF-8 BOM (as written by Excel). Rows that cannot be read are
+    skipped with a warning rather than discarding the whole register. Raises
+    ValueError if the file is unreadable or lacks the required columns.
+    """
     if not path.exists():
         return {}
     records: Dict[Key, ExceptionRecord] = {}
+    record_line: Dict[Key, int] = {}
     try:
-        with open(path, newline="", encoding="utf-8") as fh:
+        with open(path, newline="", encoding="utf-8-sig") as fh:
             reader = csv.DictReader(fh)
+            columns = {(c or "").lower().strip() for c in (reader.fieldnames or [])}
+            missing = [c for c in REQUIRED_COLUMNS if c not in columns]
+            if missing:
+                raise ValueError(
+                    f"Exceptions file {path} is missing required column(s): "
+                    f"{', '.join(missing)}"
+                )
             for row in reader:
+                line = reader.line_num
+                if None in row:  # more fields than the header has columns
+                    logger.warning("%s line %d: column count does not match header — "
+                                   "row skipped", path, line)
+                    continue
+                # A short row leaves its trailing columns as None: required ones
+                # make the row unusable; optional ones are simply empty.
+                missing_required = [c for c in REQUIRED_COLUMNS if any(
+                    (k or "").lower().strip() == c and v is None for k, v in row.items())]
+                if missing_required:
+                    logger.warning("%s line %d: missing required field(s) %s — row skipped",
+                                   path, line, ", ".join(missing_required))
+                    continue
                 # normalise column names to lowercase, strip whitespace
-                row = {k.lower().strip(): v.strip() for k, v in row.items()}
+                row = {k.lower().strip(): (v or "").strip() for k, v in row.items()}
                 host = row.get("host", "")
                 plugin_id = row.get("plugin_id", "")
                 port = row.get("port", "")
                 if not host:
+                    logger.warning("%s line %d: no host — row skipped", path, line)
                     continue
+                if "/" in host:
+                    try:
+                        net = ipaddress.ip_network(host, strict=False)
+                    except ValueError:
+                        logger.warning("%s line %d: invalid CIDR host %r — row skipped",
+                                       path, line, host)
+                        continue
+                    if net.prefixlen == 0:
+                        host = WILDCARD  # 0.0.0.0/0 is "every host"
+                if host == WILDCARD and plugin_id == WILDCARD and port == WILDCARD:
+                    logger.warning("%s line %d: host, plugin_id and port are all wildcards "
+                                   "— a blanket exception is not allowed; row skipped",
+                                   path, line)
+                    continue
+                dates = {}
+                for col in ("approved_date", "expiry_date"):
+                    raw = row.get(col, "")
+                    dates[col] = _parse_date(raw)
+                    if raw and dates[col] is None:
+                        logger.warning("%s line %d: unrecognised %s %r — treated as "
+                                       "not set", path, line, col, raw)
                 rec = ExceptionRecord(
                     host=host,
                     plugin_id=plugin_id,
                     port=port,
                     ticket_ref=row.get("ticket_ref", ""),
                     approver=row.get("approver", ""),
-                    approved_date=_parse_date(row.get("approved_date", "")),
-                    expiry_date=_parse_date(row.get("expiry_date", "")),
+                    approved_date=dates["approved_date"],
+                    expiry_date=dates["expiry_date"],
                     reason=row.get("reason", ""),
                 )
+                if rec.key in records:
+                    # Same host/plugin_id/port twice: the later row wins, as in
+                    # v1.1.0 — appended rows are how registers record renewals
+                    # and revocations. It also takes the later row's file
+                    # position for pattern tie-breaking.
+                    logger.warning("%s line %d: same host, plugin_id and port as line %d — "
+                                   "line %d replaces line %d", path, line,
+                                   record_line[rec.key], line, record_line[rec.key])
+                    del records[rec.key]
                 records[rec.key] = rec
-    except Exception:
-        return {}
+                record_line[rec.key] = line
+    except (OSError, UnicodeDecodeError, csv.Error) as e:
+        raise ValueError(f"Could not read exceptions file {path}: {e}") from e
     return records
+
+
+def _best_pattern_match(key: Key,
+                        exceptions: Dict[Key, ExceptionRecord]) -> Optional[ExceptionRecord]:
+    """Most specific wildcard/CIDR exception matching `key`; file order breaks ties."""
+    best: Optional[ExceptionRecord] = None
+    for rec in exceptions.values():
+        if rec.is_pattern and rec.matches(key):
+            if best is None or rec.specificity() > best.specificity():
+                best = rec
+    return best
 
 
 def classify_finding(
@@ -110,7 +235,7 @@ def classify_finding(
 ) -> FindingGovernance:
     """Classify one finding into its governance status."""
     key = sla_status.finding_key
-    exc = exceptions.get(key)
+    exc = exceptions.get(key) or _best_pattern_match(key, exceptions)
 
     if sla_status.status == "unknown":
         return FindingGovernance(

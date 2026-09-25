@@ -1,8 +1,8 @@
 # PatchVex — Architecture Reference
 
-**Version:** Community v1.0.0  
+**Version:** Community v1.2.0  
 **Status:** Source of truth for all future development decisions  
-**Last updated:** 2026-07-20
+**Last updated:** 2026-09-25
 
 ---
 
@@ -50,7 +50,7 @@ PatchVex is NOT a scanner. NOT a SIEM. NOT a GRC platform. NOT a CNAPP.
 
 ## 2. Current Architecture
 
-### Package layout (v0.6.x)
+### Package layout (current)
 
 ```
 vulnpilot/
@@ -67,7 +67,8 @@ vulnpilot/
 │   ├── enricher.py          # cross-references findings against KEV + EPSS
 │   └── feeds.py             # feed download (KEV JSON, EPSS CSV.GZ) + loading
 ├── parser/
-│   ├── __init__.py
+│   ├── __init__.py          # scanner registry + parse(path) dispatch
+│   ├── base.py              # Finding dataclass + Scanner ABC
 │   └── nessus.py            # Nessus CSV → Finding objects
 ├── reports/
 │   ├── __init__.py
@@ -84,7 +85,7 @@ vulnpilot/
 scan.csv
    │
    ▼
-parser/nessus.py         parse_nessus_csv()    → List[Finding]
+parser/__init__.py       parse()               → List[Finding]  (first registered scanner whose accepts() matches; Nessus today)
    │
    ▼
 enrich/enricher.py       enrich()              → List[Finding]  (mutates in-place)
@@ -92,7 +93,7 @@ enrich/enricher.py       enrich()              → List[Finding]  (mutates in-pl
    ▼
 scoring/engine.py        score_all()           → List[Finding]  (mutates priority_score, priority_label)
    │
-   ├──▶ history.py       record_scan()         → SQLite (~/.vulnpilot/history.db)
+   ├──▶ history.py       record_scan()         → SQLite (~/.vulnpilot/history.db, or a --workspace DB)
    │
    ├──▶ reports/         render_summary()
    │    terminal.py      render_findings()
@@ -110,14 +111,14 @@ scoring/engine.py        score_all()           → List[Finding]  (mutates prior
 
 ### Known issues in current architecture
 
+The issues listed here in v1.0.0 (license gate, `~/.patchvex/` SLA path, N+1 history reads in `sla.py`, Nessus-coupled `Finding` imports, no scanner interface, SQL inlined in `cmd_trend()`) have all been resolved, as have three later ones: `--json` missing on `trend`/`update-feeds`, argparse usage errors exiting `2`, and the mypy errors in `scoring/engine.py`. Open items:
+
 | Issue | Location | Impact |
 |---|---|---|
-| License gate (`--license`, `is_paid`, `FREE_TIER_LIMIT`) | `cli.py`, `html.py`, `terminal.py` | Conflicts with "CLI is always free" principle |
-| SLA config path uses `~/.patchvex/` | `sla.py:CONFIG_PATH` | Inconsistent with `~/.vulnpilot/` used everywhere else |
-| `_first_seen_from_history()` is N+1 DB reads | `sla.py` | Performance issue flagged with TODO |
-| `Finding` dataclass imported directly from `parser.nessus` | `enrich/enricher.py`, `reports/html.py` | Tight coupling to Nessus; blocks scanner abstraction |
-| No abstract scanner interface | `parser/` | Adding Trivy requires architectural change, not just a new file |
-| `cmd_trend()` inlines SQL | `cli.py:271-303` | History access logic belongs in `history.py` |
+| `NessusScanner.accepts()` reads the whole file | `parser/nessus.py` | A matching file is read twice (detection + parse) so detection matches the parser exactly. Measured: 0.16 s of 3.3 s total on a 75 MB / 360k-finding export |
+| `parse()`'s "no supported scanner" message hard-codes "Supported formats: Nessus CSV" | `parser/__init__.py` | Must be updated when a second scanner is registered |
+| A non-UTF-8 file stops dispatch at `NessusScanner.accepts()` | `parser/nessus.py` | Harmless today; a later-registered scanner for such files would never be tried (register it before Nessus) |
+| `write_default_config()` is never called | `sla.py` | `~/.vulnpilot/sla.yaml` is only created if the user writes it |
 
 ---
 
@@ -154,6 +155,8 @@ vulnpilot/
 
 The structure is deliberately conservative. Modules are renamed or moved only where alignment demands it. All current functionality is preserved.
 
+**Status:** `parser/base.py` and the `parse(path)` dispatch are implemented, and the CLI uses them. `parser/trivy.py` is not implemented.
+
 ### Data flow (v1.0 target)
 
 ```
@@ -187,7 +190,7 @@ Everything in this boundary ships in the open-source CLI with no gates.
 | Capability | Module | Status |
 |---|---|---|
 | Scanner parsing (Nessus) | `parser/nessus.py` | Stable |
-| Scanner parsing (Trivy) | `parser/trivy.py` | Phase 1 |
+| Scanner parsing (Trivy) | `parser/trivy.py` | Planned — not implemented |
 | KEV + EPSS feed management | `enrich/feeds.py` | Stable |
 | Threat enrichment | `enrich/enricher.py` | Stable |
 | Composite risk scoring | `scoring/engine.py` | Stable |
@@ -202,6 +205,8 @@ Everything in this boundary ships in the open-source CLI with no gates.
 | JSON output (`--json`) | all commands | Stable |
 | Exit code contract (0/1/2) | all commands | Stable |
 | CI/CD integration (`--fail-on-breach`) | `verify` command | Stable |
+| Per-client history (`--workspace`) | `history.py` | Stable |
+| Importing older scans (`analyze --scan-date`) | `history.py` | Stable |
 
 **Community edition rule:** If it helps one engineer understand, prioritize, verify, or document vulnerabilities, it belongs here and is free.
 
@@ -236,7 +241,7 @@ Reserved for future org-level policy, RBAC, and enterprise approval workflows. N
 
 Scanner plugins are the primary extension point for adding new input formats.
 
-**Interface contract** (to be formalized in `parser/base.py`):
+**Interface contract** (`parser/base.py`):
 
 ```python
 from abc import ABC, abstractmethod
@@ -264,20 +269,28 @@ class Scanner(ABC):
 ```python
 def parse(path: Path) -> List[Finding]:
     """Auto-detect scanner format and parse to Finding objects."""
-    for scanner in _REGISTERED_SCANNERS:
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"CSV not found: {path}")
+    # unreadable path (directory, no permission) → ValueError("Cannot read ...")
+    for scanner in _SCANNERS:
         if scanner.accepts(path):
             return scanner.parse(path)
-    raise ValueError(f"No supported scanner can parse: {path}")
+    raise ValueError(f"No supported scanner can parse: {path} ...")  # message lists supported formats
 ```
 
-**Registration order:** Nessus → Trivy → future scanners. First `accepts()` match wins.
+`cli.py` calls `parse()` for both `analyze` and `verify`, so registering a scanner in `_SCANNERS` is all the CLI needs.
+
+**Registration order:** Nessus is the only registered scanner. First `accepts()` match wins; future scanners (e.g. Trivy) are added to `_SCANNERS` in the order they should be tried. `NessusScanner.accepts()` claims any file with a line containing `plugin id`, `risk` and `host` (case-insensitive), so a scanner whose files could contain such a line must be registered **before** Nessus.
+
+**Error contract:** exceptions raised by a scanner's `accepts()` or `parse()` propagate unchanged and stop dispatch — no later scanner is tried. `NessusScanner.accepts()` returns `False` for unreadable files but lets a UTF-8 decode error propagate (the same error the Nessus parser raises). Contract tests: `tests/test_parser_registry.py`. First match is the explicit contract; to keep it from silently depending on order, `REGISTERED_SCANNER_SAMPLES` in that file must list real sample files for every registered scanner, and each sample must be accepted by exactly one registered scanner.
 
 **Format detection strategy:**
 
 | Scanner | Detection method |
 |---|---|
-| Nessus | CSV with `Plugin ID`, `Risk`, `Host` columns in header |
-| Trivy | JSON with top-level `SchemaVersion` + `Results` keys |
+| Nessus | A header row containing `Plugin ID`, `Risk`, `Host` anywhere in the file (same search as `parse_nessus_csv()`; any file extension) |
+| Trivy (planned) | JSON with top-level `SchemaVersion` + `Results` keys |
 | Future (Qualys, Defender, OpenVAS) | Same `accepts()` pattern |
 
 ### Framework plugins (evidence)
@@ -301,36 +314,41 @@ These are the interfaces that users, scripts, and CI/CD systems depend on. They 
 ### CLI commands
 
 ```
-vulnpilot analyze <scan.csv>         [--html FILE] [--evidence FRAMEWORK]
+vulnpilot [--no-colour] analyze <scan.csv>
+                                      [--html FILE] [--evidence FRAMEWORK]
                                       [--evidence-out FILE] [--json]
                                       [--kev FILE] [--epss FILE]
                                       [--top-hosts N] [--sla-config FILE]
-                                      [--no-colour]
+                                      [--workspace NAME] [--scan-date YYYY-MM-DD]
+                                      [--all] [--license KEY]   (no-ops, kept for compatibility)
 
-vulnpilot verify  <scan.csv>         [--exceptions FILE] [--evidence FRAMEWORK]
+vulnpilot [--no-colour] verify <scan.csv>
+                                      [--exceptions FILE] [--evidence FRAMEWORK]
                                       [--evidence-out FILE] [--json]
                                       [--kev FILE] [--epss FILE]
                                       [--sla-config FILE] [--fail-on-breach]
+                                      [--workspace NAME] [--exclude-run ID]
                                       [--export-tickets FILE] [--ticket-format FORMAT]
-                                      [--no-colour]
 
-vulnpilot update-feeds               [--cache DIR]
+vulnpilot update-feeds               [--cache DIR] [--json]
 
-vulnpilot trend
+vulnpilot trend                      [--workspace NAME] [--json]
 
 vulnpilot --version
 vulnpilot --help
 ```
+
+`--no-colour` (alias `--no-color`) is a global flag and goes before the command. `analyze --sla-config` is accepted but unused (SLA applies to `verify` only). Hidden aliases `verify --exc` (= `--exceptions`) and `analyze --s` (= `--sla-config`) keep two abbreviations from v1.1.0 unambiguous now that `--exclude-run` and `--scan-date` exist. `--scan-date` is validated against the local date.
 
 ### Exit code contract
 
 | Code | Meaning |
 |---|---|
 | `0` | Success — no audit findings |
-| `1` | Tool error (file not found, parse failure, network error) |
+| `1` | Tool error: file not found or unreadable, parse failure, network error, invalid flag or argument (argparse usage errors), invalid `--exclude-run` / `--scan-date` / `--workspace` / exceptions file, or `verify` with no baseline |
 | `2` | Audit findings exist (only returned when `--fail-on-breach` is set) |
 
-This contract is stable. CI/CD pipelines depend on it.
+This contract is stable. CI/CD pipelines depend on it. `2` is never used for anything else: argparse's default exit code `2` for usage errors is overridden to `1` (`cli._ArgumentParser`). `--help` and `--version` exit `0`.
 
 ### JSON output schema (`--json`)
 
@@ -360,9 +378,14 @@ This contract is stable. CI/CD pipelines depend on it.
       "synopsis": "...",
       "solution": "..."
     }
-  ]
+  ],
+  "history_id": 7,
+  "scan_date": null,
+  "recorded_at": "2026-09-25T09:20:36.102786+00:00"
 }
 ```
+
+`history_id` is the history row ID (use with `verify --exclude-run`); `scan_date` is set only with `--scan-date`; `history_id` and `recorded_at` are `null` if the run could not be recorded. With no actionable findings the same shape is printed with `total_findings: 0`, `findings: []` and nothing recorded.
 
 **`vulnpilot verify --json`**
 
@@ -393,6 +416,30 @@ This contract is stable. CI/CD pipelines depend on it.
 }
 ```
 
+With no actionable findings the same shape is printed with `baseline_date: null`, zero counts and empty lists.
+
+**`vulnpilot trend --json`**
+
+```json
+{
+  "command": "trend",
+  "runs": [
+    {"timestamp_utc": "2026-09-25T09:20:34.173253+00:00", "total_findings": 6,
+     "kev_count": 4, "critical_count": 4, "scan_date": null}
+  ]
+}
+```
+
+Runs are in recording order; `scan_date` is set only for imported scans. With no history, `runs` is `[]` (exit `0`) and the hint goes to stderr.
+
+**`vulnpilot update-feeds --json`**
+
+```json
+{"command": "update-feeds", "cache_dir": "/home/user/.vulnpilot/feeds"}
+```
+
+Download progress goes to stderr. On failure stdout is empty and the command exits `1`. On any error stdout is empty and the message goes to stderr — stdout only ever contains JSON.
+
 Fields marked with `null` may be absent when data is unavailable. New fields may be added in minor versions. Fields will not be removed without a major version bump.
 
 ### Evidence pack output
@@ -421,9 +468,11 @@ low: 180
 
 ### Exception register file
 
-CSV with columns: `host, plugin_id, port, ticket_ref, approver, approved_date, expiry_date, reason`
+CSV with columns: `host, plugin_id, port, ticket_ref, approver, approved_date, expiry_date, reason` (`host`, `plugin_id`, `port` required; a UTF-8 BOM is accepted)
 
-Date formats accepted: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `DD-MM-YYYY`
+- `host`, `plugin_id` and `port` may be `*`; `host` may be a CIDR range. An exact row wins over a pattern, otherwise the most specific matching row applies (exact field 2, CIDR host 1, `*` 0; between equal-scoring CIDR rows the longer prefix wins; remaining ties → first row in the file). A row matching everything is rejected. Duplicate `host, plugin_id, port` rows: the later row replaces the earlier one, with a warning.
+- A row that leaves off trailing optional columns is accepted with them empty; a row missing a required field or with extra fields is skipped with a warning; a file missing required columns, or a missing `--exceptions` path, is an error (exit `1`).
+- Date formats accepted: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `DD-MM-YYYY` (ambiguous dates read as DD/MM). Full format: `docs/evidence.md`.
 
 ---
 
@@ -431,7 +480,7 @@ Date formats accepted: `YYYY-MM-DD`, `DD/MM/YYYY`, `MM/DD/YYYY`, `DD-MM-YYYY`
 
 These interfaces are used between modules within the package. They may change across minor versions but changes should be coordinated across all callers.
 
-### `Finding` dataclass (`parser/base.py` → currently `parser/nessus.py`)
+### `Finding` dataclass (`parser/base.py`)
 
 ```python
 @dataclass
@@ -506,11 +555,12 @@ class FindingGovernance:
 ```python
 @dataclass
 class VerifyResult:
-    baseline_date: Optional[str]
+    baseline_date: str                   # date the baseline run was recorded
     fixed: List[dict]
     still_open: List[dict]
     new: List[dict]
     out_of_scope_hosts: List[str]
+    baseline_scan_date: Optional[str]    # set only if the baseline was imported with --scan-date
 
     @property
     def summary(self) -> dict: ...      # counts of each category
@@ -525,6 +575,7 @@ class VerifyResult:
 | `verify.py` | `history`, `parser.base`, `sla`, `exceptions` | `cli`, `evidence`, `reports` |
 | `sla.py` | `history` | `cli`, `evidence`, `verify`, `exceptions` |
 | `exceptions.py` | `sla` | `cli`, `evidence`, `verify`, `history` |
+| `export.py` | `exceptions`, `sla` | `cli`, `evidence`, `verify`, `reports` |
 | `scoring/` | `parser.base` | everything else |
 | `enrich/` | `parser.base` | everything else |
 | `reports/` | `parser.base` | `cli`, `evidence`, `verify`, `sla`, `exceptions` |
@@ -542,19 +593,13 @@ These Python APIs are considered stable for external consumers (scripts, wrapper
 ### Parsing
 
 ```python
-from vulnpilot.parser import parse_nessus_csv, Finding
+from vulnpilot.parser import parse, Finding
 
-findings = parse_nessus_csv(Path("scan.csv"))
+findings = parse(Path("scan.csv"))   # format auto-detected via the scanner registry
 # Returns List[Finding]; raises FileNotFoundError or ValueError on failure
 ```
 
-After scanner abstraction lands:
-
-```python
-from vulnpilot.parser import parse, Finding
-
-findings = parse(Path("scan.csv"))   # format auto-detected
-```
+`parse_nessus_csv(path)` remains exported and stable for callers that want the Nessus parser directly; for Nessus files it returns the same findings as `parse()`.
 
 ### Scoring
 
@@ -596,6 +641,8 @@ path = generate_evidence_pack(
     output_path=None,          # auto-named if None
     verify_result=None,        # optional: include remediation verification
     governance_summary=None,   # optional: include governance posture
+    scan_date=None,            # optional: stated scan date of an imported scan
+    recorded_at=None,          # optional: when that scan was recorded to history
 )
 ```
 
@@ -619,9 +666,19 @@ logic. See README § Ticket Export for the full field schema.
 ```python
 from vulnpilot import history
 
-history.record_scan(findings, scan_file=Path("scan.csv"))
+run_id = history.record_scan(findings, scan_file=Path("scan.csv"),
+                             scan_date=None)   # "YYYY-MM-DD" marks an imported scan
 count = history.scan_count()
 first = history.first_scan_date()
+imported = history.imported_count()
+rows = history.load_rows()        # recording order (by id); dicts with id, timestamp,
+                                  # findings, scan_date, recorded_at
+```
+
+```python
+from vulnpilot.verify import verify_scan
+
+result = verify_scan(scored, exclude_run=run_id)   # exclude_run optional
 ```
 
 ### SLA + Governance
@@ -648,7 +705,7 @@ These are the documented ways to extend PatchVex without modifying core modules.
 
 1. Create `vulnpilot/parser/<scanner_name>.py`
 2. Implement the `Scanner` abstract class from `parser/base.py`
-3. Register in `parser/__init__.py`
+3. Register in `parser/__init__.py` (before `NessusScanner` if its files could match Nessus detection — see Registration order), and add its real sample files to `REGISTERED_SCANNER_SAMPLES` in `tests/test_parser_registry.py`
 4. All outputs must produce `Finding` objects with the standard field contract
 5. Add test file `tests/test_parser_<scanner_name>.py`
 6. Add sample data to `data/sample/`
@@ -698,12 +755,13 @@ The Workflow edition imports `vulnpilot` as a library. It must not patch or monk
 
 | Data | Path | Notes |
 |---|---|---|
-| Scan history | `~/.vulnpilot/history.db` | SQLite; created automatically on first run |
-| SLA policy | `~/.vulnpilot/sla.yaml` | Created by `write_default_config()` |
-| KEV feed cache | `~/.vulnpilot/feeds/kev.json` | Updated by `update-feeds` |
-| EPSS feed cache | `~/.vulnpilot/feeds/epss.csv.gz` | Updated by `update-feeds` |
+| Scan history | `~/.vulnpilot/history.db` | SQLite; created automatically on first recorded run |
+| Workspace history | `~/.vulnpilot/workspaces/<name>/history.db` | Used instead of the above with `--workspace <name>`; names are case-insensitive and stored lowercase |
+| SLA policy | `~/.vulnpilot/sla.yaml` | Optional; written by the user (defaults apply if absent) |
+| KEV feed cache | `~/.vulnpilot/feeds/known_exploited_vulnerabilities.json` | Updated by `update-feeds` |
+| EPSS feed cache | `~/.vulnpilot/feeds/epss_scores-current.csv.gz` | Updated by `update-feeds` |
 
-All data lives under `~/.vulnpilot/`. No other home directory paths are used.
+All data lives under `~/.vulnpilot/`. No other home directory paths are used. History databases, and directories `record_scan()` has to create for them, are created owner-only (`0600` / `0700`) on POSIX; existing files and directories keep their permissions. Reading history never creates a database file.
 
 ### History database schema
 
@@ -717,19 +775,29 @@ CREATE TABLE scan_history (
     kev_count       INTEGER,
     critical_count  INTEGER,
     high_count      INTEGER,
-    findings_json   TEXT
+    findings_json   TEXT,
+    scan_date       TEXT,     -- added after v1.1.0
+    recorded_at     TEXT      -- added after v1.1.0
 );
 CREATE INDEX idx_history_ts ON scan_history (timestamp_utc);
 ```
 
 `findings_json` stores a JSON array of minimal finding identity dicts `{plugin_id, cve, host, port, name, risk, score, kev, epss, priority}`. This is the source for `verify`, `sla`, and `trend`.
 
+- `timestamp_utc` — when VulnPilot recorded the row (v1.1.0 meaning, unchanged). Never set to a scan date.
+- `recorded_at` — explicit recording time; equals `timestamp_utc` for new rows, `NULL` for rows written by v1.1.0 (never back-filled).
+- `scan_date` — date the scanner ran, only for scans imported with `analyze --scan-date`; otherwise `NULL`.
+- History order is insertion order (`id`). The `verify` baseline is the highest `id` (minus `--exclude-run`); SLA first-seen is the recording time of the first run containing the finding. `scan_date` is displayed but never used for ordering, baselines or SLA.
+
+**Migration:** `record_scan()` (the only writer) creates the table and adds any missing column with `ALTER TABLE ... ADD COLUMN`; idempotent and non-destructive. Readers never alter the schema and read `NULL` for columns an older database lacks. v1.1.0 can still read a migrated database.
+
 ### Offline operation
 
 VulnPilot operates fully offline. The only network calls are:
 
-- `vulnpilot update-feeds` — downloads KEV from CISA and EPSS from FIRST
-- GitHub Actions `update-feeds.yml` — runs daily at 06:00 UTC to keep repo feeds current
+- `vulnpilot update-feeds` — downloads KEV from CISA and EPSS from FIRST into `~/.vulnpilot/feeds/` (or `--cache DIR`)
+
+There is no automated feed synchronization: the former GitHub Actions `update-feeds.yml` workflow never completed a run and nothing read its output, so it was removed. Feeds are refreshed only when a user runs `update-feeds`.
 
 No other network activity occurs.
 

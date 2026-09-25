@@ -1,6 +1,5 @@
 """SLA engine — tracks remediation deadlines and breach status."""
 from __future__ import annotations
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -55,41 +54,26 @@ def write_default_config() -> Path:
 
 
 def _first_seen_from_history(finding_key: tuple) -> Optional[str]:
-    # TODO v0.5.1: N+1 DB reads — called once per finding. Replace with a
-    # single query that loads all history rows, then build a lookup dict in
-    # compute_all_sla() and pass first_seen timestamps in directly.
     from vulnpilot import history
-    try:
-        conn = sqlite3.connect(history.DB_PATH)
-        rows = conn.execute(
-            "SELECT timestamp_utc, findings_json FROM scan_history "
-            "ORDER BY timestamp_utc ASC"
-        ).fetchall()
-        conn.close()
-    except Exception:
-        return None
-    import json
-    host, plugin_id, port = finding_key
-    for ts, blob in rows:
-        try:
-            findings = json.loads(blob or "[]")
-        except Exception:
-            continue
-        for f in findings:
-            if (f.get("host") == host and
-                    f.get("plugin_id") == plugin_id and
-                    f.get("port") == port):
-                return ts
-    return None
+    return history.first_seen_map(history.load_rows()).get(finding_key)
 
 
-def compute_sla_status(finding, sla_config: Optional[dict] = None) -> SLAStatus:
+def compute_sla_status(finding, sla_config: Optional[dict] = None,
+                       first_seen_map: Optional[dict] = None) -> SLAStatus:
+    """SLA status for one finding.
+
+    Pass `first_seen_map` (from history.first_seen_map) when scoring many
+    findings; without it, history is read for this finding alone.
+    """
     if sla_config is None:
         sla_config = load_sla_config()
     risk = (finding.risk or "").lower().strip()
     key = (finding.host or "", finding.plugin_id or "", finding.port or "")
     sla_days = sla_config.get(risk)
-    first_seen = _first_seen_from_history(key)
+    if first_seen_map is None:
+        first_seen = _first_seen_from_history(key)
+    else:
+        first_seen = first_seen_map.get(key)
     if first_seen is None or sla_days is None:
         return SLAStatus(finding_key=key, risk=risk, first_seen=first_seen,
                          days_open=None, sla_days=sla_days,
@@ -112,7 +96,12 @@ def compute_sla_status(finding, sla_config: Optional[dict] = None) -> SLAStatus:
 
 
 def compute_all_sla(findings: list,
-                    sla_config: Optional[dict] = None) -> list:
+                    sla_config: Optional[dict] = None,
+                    rows: Optional[list] = None) -> list:
+    """SLA status for every finding. Pass `rows` (from history.load_rows())
+    when the caller has already loaded history, to avoid reading it again."""
+    from vulnpilot import history
     if sla_config is None:
         sla_config = load_sla_config()
-    return [compute_sla_status(f, sla_config) for f in findings]
+    seen = history.first_seen_map(history.load_rows() if rows is None else rows)
+    return [compute_sla_status(f, sla_config, seen) for f in findings]

@@ -56,5 +56,8 @@ def score_all(findings: List[Finding], config: ScoringConfig = DEFAULT_CONFIG, l
     for f in findings:
         f.priority_score = score_finding(f, config)
         f.priority_label = _priority_label(f.priority_score, f.kev_match)
-    findings.sort(key=lambda f: f.priority_score, reverse=True)
+    # Every finding was scored above; the None branch only satisfies the
+    # Optional[float] type of Finding.priority_score and is never taken here.
+    findings.sort(key=lambda f: f.priority_score if f.priority_score is not None else 0.0,
+                  reverse=True)
     return findings[:limit] if limit > 0 else findings

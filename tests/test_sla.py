@@ -117,3 +117,15 @@ def test_compute_all_sla_returns_aligned_list(tmp_path, monkeypatch):
     assert len(results) == 2
     assert results[0].status == "within"
     assert results[1].status == "unknown"
+
+
+def test_compute_all_sla_reads_history_once(tmp_path, monkeypatch):
+    db = _make_db_with_finding(tmp_path, "10.0.0.1", "33850", "443", 10)
+    monkeypatch.setattr(history, "DB_PATH", db)
+    calls = []
+    real = history.load_rows
+    monkeypatch.setattr(history, "load_rows", lambda: calls.append(1) or real())
+    findings = [FakeFinding("10.0.0.1", "33850", "443", "critical")] * 50
+    results = compute_all_sla(findings, {"critical": 7})
+    assert len(calls) == 1
+    assert all(r.status == "breached" and r.days_open == 10 for r in results)

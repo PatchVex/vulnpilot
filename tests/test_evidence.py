@@ -64,6 +64,12 @@ def test_history_never_raises(tmp_path, monkeypatch):
     assert history.record_scan(_scored()) is None
 
 
+def test_history_save_failure_is_logged(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(history, "DB_PATH", Path("/nonexistent/dir/x.db"))
+    assert history.record_scan(_scored()) is None
+    assert "not recorded to history" in caplog.text
+
+
 def test_governance_section_appears_when_summary_provided(tmp_path):
     gs = {
         "within_sla": 41,

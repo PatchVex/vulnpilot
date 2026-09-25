@@ -25,18 +25,28 @@ def parse(path: Path) -> List[Finding]:
     """Auto-detect scanner format and return normalized Finding objects.
 
     Tries each registered scanner in order; first accepts() match wins.
+    Exceptions raised by a scanner's accepts() or parse() propagate unchanged
+    (no later scanner is tried).
 
     Raises:
         FileNotFoundError: if path does not exist
-        ValueError: if no registered scanner can parse the file
+        ValueError: if the path cannot be read (e.g. a directory or no read
+            permission), or no registered scanner can parse the file
     """
     path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"CSV not found: {path}")
+    try:
+        with open(path, "rb"):
+            pass
+    except OSError as e:
+        raise ValueError(f"Cannot read {path}: {e.strerror or e}") from e
     for scanner in _SCANNERS:
         if scanner.accepts(path):
             return scanner.parse(path)
     raise ValueError(
         f"No supported scanner can parse: {path}\n"
-        "Supported formats: Nessus CSV\n"
+        "Supported formats: Nessus CSV (expected columns: Plugin ID, Risk, Host, CVE)\n"
         "Run 'vulnpilot --help' for usage."
     )
 

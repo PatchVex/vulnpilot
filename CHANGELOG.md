@@ -7,6 +7,94 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.0] — 2026-09-25
+
+Nessus CSV remains the only supported scanner format.
+
+### Added
+- **`verify --exclude-run ID`** — exclude one history run from baseline selection. Use it when
+  `analyze` has already recorded the scan being verified, so the scan is not compared against itself.
+- **History run IDs** — `analyze` reports the ID of the run it recorded (`History run ID: N`, and
+  `history_id` in `--json` output).
+- **`--workspace NAME`** on `analyze`, `verify` and `trend` — keeps a separate scan history per client
+  or environment in `~/.vulnpilot/workspaces/NAME/history.db`. Without it the shared
+  `~/.vulnpilot/history.db` is used as before. Names are case-insensitive (`Acme` = `acme`, stored lowercase).
+- **`analyze --scan-date YYYY-MM-DD`** — import an older scan with the date the scanner ran. The import
+  is recorded as a new run at the time it is imported; the stated scan date is stored alongside it and
+  never replaces the recording time, so history order, `verify` baselines and SLA first-seen dates are
+  unaffected by it. Imports are marked in `trend`, in `verify` when an import is the baseline, and in
+  evidence packs, which state the scan date and the import time separately and count imported runs.
+- **Wildcard and CIDR exceptions** — in the exception register, `host`, `plugin_id` and `port` accept
+  `*`, and `host` accepts a CIDR range. Exact rows win; otherwise the most specific matching row applies,
+  and between otherwise equal CIDR rows the narrower network wins (IPv4 and IPv6). A row that matches
+  everything is rejected. When two rows share host, plugin_id and port, the later row still replaces the
+  earlier one (as in 1.1.0), now with a warning naming both lines.
+- **`--json` on `trend` and `update-feeds`**, so every command now has JSON output. `update-feeds`
+  progress messages go to stderr in JSON mode.
+- History database columns `scan_date` and `recorded_at`. Existing databases gain them automatically the
+  next time a scan is recorded; existing rows are left unchanged (`NULL`), and v1.1.0 can still read a
+  migrated database.
+
+### Changed
+- **Invalid flags or arguments now exit `1`** (tool error) instead of argparse's default `2`, so exit `2`
+  always means audit findings under `--fail-on-breach`. `--help` and `--version` still exit `0`.
+- **`--json` stdout is JSON only.** `verify` errors (including "No scan history found") now go to
+  stderr. With no actionable findings, `analyze --json` and `verify --json` print a JSON result with the
+  usual fields and empty/zero values instead of plain text.
+- `analyze --json` now also writes the `--html` report, and `verify --json` also writes the `--evidence`
+  pack, instead of silently skipping them (their messages go to stderr).
+- `analyze --json` output gains `history_id`, `scan_date` and `recorded_at`. Existing fields are unchanged.
+- A missing or invalid `--exceptions` file is now an error (exit `1`) instead of silently applying no
+  exceptions. The file may carry a UTF-8 BOM (as saved by Excel). A row that leaves off trailing optional
+  columns (e.g. `reason`) is accepted with those fields empty; a row missing a required field or with extra
+  fields is skipped with a warning naming the line, instead of discarding the whole register; unrecognised
+  dates are warned about.
+- `--scan-date` is checked against the local date, so a scan dated today in your timezone is accepted even
+  when the UTC date is still the previous day.
+- The abbreviations `verify --exc` (for `--exceptions`) and `analyze --s` (for `--sla-config`) keep working
+  despite the new `--exclude-run` and `--scan-date` flags; other abbreviations behave as before.
+- `analyze` and `verify` read scans through the scanner registry (`vulnpilot.parser.parse`). Nessus
+  results are unchanged; the error for an unrecognised file now reads "No supported scanner can parse"
+  and lists the expected Nessus columns.
+- History is ordered by recording order (row ID). For history written by earlier versions this is the
+  same order as before.
+- "No scan history" hints include `--workspace NAME` when a workspace is in use.
+
+### Fixed
+- A directory or unreadable file passed to `analyze` or `verify` now gives a clear error and exit `1`
+  instead of a traceback.
+- A failure to record a run to history is now reported as a warning instead of being silently ignored
+  (the command itself still succeeds).
+- SLA status no longer re-reads the whole history database once per finding, and `verify` reads history
+  once for both baseline selection and SLA.
+- New history databases, and any directories created for them, are owner-only (`0600`/`0700`) on POSIX
+  instead of following the umask; existing files keep their permissions. Reading history (e.g. `trend`
+  before any scan) no longer creates an empty, default-permission database file.
+
+### Removed
+- The GitHub Actions daily feed-sync workflow (`update-feeds.yml`). It never completed a run — every run
+  failed at its commit step — and nothing read the repository copy of the feeds. Automated feed
+  synchronization is not currently implemented; `vulnpilot update-feeds` is unchanged.
+
+### Documentation
+- `ARCHITECTURE.md` brought in line with the current code: scanner registry and error contract,
+  registration order, CLI flags, exit codes, JSON schemas, history schema and date semantics, known issues.
+- README, quickstart, FAQ, trend and evidence docs updated for the above, including a corrected CI
+  example (`verify` records its own run; seed history once with `analyze`), the exception register
+  format, and removal of the claim that feeds are synced automatically.
+- `docs/tenable-tvm-sample-requirements.md` — the real, scrubbed Tenable Vulnerability Management export
+  needed before TVM support can be designed. TVM is **not** supported.
+
+### Internal
+- Scanner registry contract tests, including a guard that every registered scanner has real sample files
+  and that no sample is accepted by more than one scanner.
+- `NessusScanner.accepts()` shares the Nessus parser's file reading and header detection, so detection
+  matches exactly what the parser can read.
+- The package-build test builds into a temporary directory instead of `dist/`.
+- mypy reports no errors.
+- Pre-push test hook in `.githooks/` (enable with `git config core.hooksPath .githooks`).
+- 310 automated tests passing.
+
 ## [1.1.0] — 2026-08-21
 
 ### Added
@@ -138,6 +226,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Free tier — top 20 findings
 - `vulnpilot analyze` command
 - `vulnpilot update-feeds` command
-- GitHub Actions daily feed automation (6am UTC)
+- GitHub Actions daily feed automation (6am UTC) — *note: this workflow never completed a run and was removed after v1.1.0; automated feed sync is not currently implemented*
 - MIT license
 - 12 unit and integration tests
